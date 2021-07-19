@@ -1,0 +1,12 @@
+[package]
+name = "authsrv"
+version = "0.1.0"
+authors = ["Tim Newsham <tim.newsham@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rocket = { version = "0.5.0-rc.1", features = ["json"] }
+rust-argon2 = "0.8"
+
