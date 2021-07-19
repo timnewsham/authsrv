@@ -1,0 +1,5 @@
+[default]
+use_tests = false
+
+[debug]
+use_tests = true

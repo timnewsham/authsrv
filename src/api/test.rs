@@ -16,3 +16,11 @@ pub fn hasher(secret: &str) -> String {
     format!("Your hash is \"{}\"\n", hash)
 }
 
+// XXX for devel remove me
+#[get("/crash")]
+pub fn crasher() -> String {
+    let x : &str = None.expect("cant get value");
+    format!("Your value is \"{}\"\n", x)
+}
+
+
