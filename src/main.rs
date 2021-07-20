@@ -1,12 +1,17 @@
 
+#[macro_use] extern crate diesel;
 #[macro_use] extern crate rocket;
 
-mod db;
-mod state;
 mod api;
+mod db;
+//mod schema;
+mod state;
 
-//use rocket::fairing::AdHoc;
 use rocket::serde::Deserialize; 
+use rocket_sync_db_pools::{database};                                   
+
+#[database("diesel")]                                                           
+pub struct Db(diesel::PgConnection);  
 
 #[derive(Debug, Deserialize)]
 #[serde(crate = "rocket::serde")] 
@@ -25,6 +30,8 @@ fn rocket() -> _ {
                 api::test::hasher,
                 api::test::crasher])
     }
+
     b.manage(state::ServerState::new())
+        .attach(Db::fairing())
         .mount("/auth", routes![api::auth::auth])
 }
