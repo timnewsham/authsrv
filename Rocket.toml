@@ -3,3 +3,10 @@ use_tests = false
 
 [debug]
 use_tests = true
+
+# Configure instead with
+# export ROCKET_DATABASES='{diesel={url=postgres://user:pw@localhost/oauth}}'
+#
+#  [default.databases.diesel]
+#  url = "postgres://user:pw@localhost/oauth"
+
