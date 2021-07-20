@@ -1,13 +1,12 @@
 
 use argon2;
-use rocket::State;
+//use rocket::State;
 use rocket::serde::{Serialize, Deserialize, json::Json};
 use rocket::response::{Debug};
 use diesel::table;
-//use rocket_sync_db_pools::diesel;
 use rocket_sync_db_pools::diesel::prelude::*;
 
-use crate::state::ServerState;
+//use crate::state::ServerState;
 use crate::Db;
 
 table! {
@@ -64,18 +63,16 @@ async fn auth_logic(db: &Db, req: &AuthReq<'_>) -> AuthResp {
 
     // XXX to_owned!
     let u = match get_user(&db, req.name.to_owned()).await {
-        Ok(u) => u,
+        Ok(x) => x,
         _ => return err,
     };
-
-    let authed = if let Ok(ok) = argon2::verify_encoded(&u.hash, req.secret.as_bytes()) {
-                ok
-            // grant if the user has all requested scopes
-            //XXX authed = ok && req.scopes.iter().all(|&s| u.scopes.contains(s));
-    } else {
-        false
-    };
-    if !authed { return err; }
+    if !argon2::verify_encoded(&u.hash, req.secret.as_bytes()).unwrap_or(false) {
+        return err;
+    }
+    // XXX to_owned
+    if !req.scopes.iter().all(|&s| u.scopes.contains(&s.to_owned())) {
+        return err;
+    }
 
     let token = "XXX"; // XXX create token
      // XXX insert token into db
