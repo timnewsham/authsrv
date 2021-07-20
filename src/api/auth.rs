@@ -21,7 +21,6 @@ table! {
 #[serde(crate = "rocket::serde")]
 #[table_name="users"]
 struct User {
-    //#[serde(skip_deserializing)]
     name: String,
     hash: String,
     scopes: Vec<String>,
@@ -57,9 +56,9 @@ async fn get_user(db: &Db, name: String) -> Result<User> {
     Ok(u)
 }
 
-// XXX async
-async fn auth_logic(db: &Db, req: &AuthReq<'_>) -> AuthResp {
-    let err = AuthResp{ status: "error".to_owned(), result: None };
+#[post("/", format="json", data="<req>")]
+pub async fn auth(db: Db, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
+    let err = Json(AuthResp{ status: "error".to_owned(), result: None });
 
     // XXX to_owned!
     let u = match get_user(&db, req.name.to_owned()).await {
@@ -69,6 +68,10 @@ async fn auth_logic(db: &Db, req: &AuthReq<'_>) -> AuthResp {
     if !argon2::verify_encoded(&u.hash, req.secret.as_bytes()).unwrap_or(false) {
         return err;
     }
+
+    // XXX return failure if user account is expired
+    // XXX remove any scopes that are no longer defined
+
     // XXX to_owned
     if !req.scopes.iter().all(|&s| u.scopes.contains(&s.to_owned())) {
         return err;
@@ -80,12 +83,9 @@ async fn auth_logic(db: &Db, req: &AuthReq<'_>) -> AuthResp {
         token: token.to_owned(),
         scopes: req.scopes.iter().copied().map(str::to_owned).collect(),
     };
-    AuthResp{ status: "ok".to_string(),
-              result: Some(astate) }
-}
-
-#[post("/", format="json", data="<req>")]
-pub async fn auth(db: Db, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
-    Json(auth_logic(&db, &req).await)
+    Json(AuthResp{ 
+        status: "ok".to_string(),
+        result: Some(astate) 
+    })
 }
 
