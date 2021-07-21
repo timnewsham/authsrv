@@ -4,7 +4,9 @@ use crate::Server;
 
 #[get("/")]
 pub fn health(serv: &Server) -> String {
-    format!("alive. caching is {}\n", if serv.use_cache { "enabled" } else { "disabled" })
+    format!("alive. caching is {}. cache lifetime {}\n", 
+        if serv.use_cache { "enabled" } else { "disabled" },
+        serv.cache_lifetime)
 }
 
 // XXX for devel. remove me!
