@@ -12,3 +12,6 @@ echo
 curl -X POST -H "Content-type: application/json" http://localhost:8000/auth -d '{"name": "admin", "secret": "adminadmin", "scopes": ["authadmin"] }'
 echo
 
+curl -X POST -H "Content-type: application/json" http://localhost:8000/auth -d '{"name": "admin", "secret": "adminadmin", "scopes": ["authadmin", "authadmin", "authadmin"] }'
+echo
+

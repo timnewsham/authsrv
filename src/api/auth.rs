@@ -1,4 +1,6 @@
 
+use std::collections::HashSet;
+use std::sync::Mutex;
 use argon2;
 use rocket::serde::{Serialize, Deserialize, json::Json};
 use rand::{Rng, rngs::StdRng};
@@ -26,18 +28,19 @@ pub struct AuthState {
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct AuthResp {
-    status: String,
+    status: &'static str,
     result: Option<AuthState>,
 }
 
-fn gen_token(rng: &mut StdRng) -> String {
-    let bytes: [u8; 20] = rng.gen();
+fn gen_token(rng: &Mutex<StdRng>) -> String {
+    // unwrap() here can only panic if another thread already paniced while holding the mutex
+    let bytes: [u8; 20] = rng.lock().unwrap().gen(); // safe
     bytes.encode_hex()
 }
 
 #[post("/", format="json", data="<req>")]
 pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
-    let err = Json(AuthResp{ status: "error".to_owned(), result: None });
+    let err = Json(AuthResp{ status: "error", result: None });
 
     // XXX to owned
     let u = match get_user(&db, &cache, serv, req.name.to_owned()).await {
@@ -51,19 +54,19 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
     // XXX return failure if user account is expired
     // XXX remove any scopes that are no longer defined
 
-    // make sure the user has all of the requested scopes
-    if !req.scopes.iter().all(|&req| u.scopes.iter().any(|have| req == have)) {
+    let req_scopes: HashSet<_> = req.scopes.iter().copied().collect();
+    let have_scopes: HashSet<_> = u.scopes.iter().map(|s| s.as_ref()).collect();
+    if !req_scopes.is_subset(&have_scopes) {
         return err;
     }
 
      // XXX insert token into db
     let astate = AuthState {
-        // unwrap() here can only panic if another thread already paniced while holding the mutex
-        token: gen_token(&mut serv.rng.lock().unwrap()), // safe
-        scopes: req.scopes.iter().copied().map(str::to_owned).collect(),
+        token: gen_token(&serv.rng),
+        scopes: req_scopes.iter().copied().map(str::to_owned).collect(),
     };
     Json(AuthResp{ 
-        status: "ok".to_string(),
+        status: "ok",
         result: Some(astate) 
     })
 }
