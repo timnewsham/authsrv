@@ -3,7 +3,7 @@ use std::sync::Arc;
 use argon2;
 use rocket::State;
 use rocket::serde::{Serialize, Deserialize, json::Json};
-use serde_json;
+use rmp_serde;
 use diesel::table;
 //use memcache::{FromMemcacheValue, MemcacheError};
 use rocket_sync_db_pools::diesel::prelude::*;
@@ -73,19 +73,17 @@ fn errstr(x: impl ToString) -> String {
 const CACHETIME: u32 = 5 * 60;
 
 /*
- * Fetch typ_key from cache and return it if there were no cache errors
+ * Fetch key from cache and return it if there were no cache errors
  * or parse errors.
  */
 async fn cache_get(cache: &Cache, key: Arc<String>) -> Option<User> {
-    let s: String = cache.run(move |c| c.get(&key)).await.ok()??;
-    // XXX isnt there some more compact and performant encoding we can use
-    // that supports Serialize/Deserialize?
-    serde_json::from_str(&s).ok()
+    let s: Vec<u8> = cache.run(move |c| c.get(&key)).await.ok()??;
+    rmp_serde::from_read_ref(&s).ok()
 }
 
 async fn cache_put(cache: &Cache, key: Arc<String>, x: &impl Serialize) -> Option<()>{
-    let s = serde_json::to_string(x).ok()?;
-    cache.run(move |c| c.set(&key, &s, CACHETIME)).await.ok()
+    let s: Vec<u8> = rmp_serde::to_vec(x).ok()?;
+    cache.run(move |c| c.set(&key, &*s, CACHETIME)).await.ok()
 }
 
 async fn get_user(db: &Db, cache: &Cache, serv: &State<ServerState>, name: String) -> Result<User> {
