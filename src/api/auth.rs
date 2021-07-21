@@ -1,16 +1,14 @@
 
 use std::sync::Arc;
 use argon2;
-use rocket::State;
-use rocket::serde::{Serialize, Deserialize, DeserializeOwned, json::Json};
-use rmp_serde;
+use rocket::serde::{Serialize, Deserialize, json::Json};
 use diesel::table;
-//use memcache::{FromMemcacheValue, MemcacheError};
 use rocket_sync_db_pools::diesel::prelude::*;
 use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
-use crate::{Db, Cache, ServerState};
+use crate::{Db, Cache, Server};
+use crate::cache;
 
 table! {
     users (name) {
@@ -52,50 +50,20 @@ pub struct AuthResp {
     result: Option<AuthState>,
 }
 
-/*
-impl FromMemcacheValue for User {
-    fn from_memcache_value(value: Vec<u8>, flags: u32) -> std::result::Result<Self, MemcacheError> {
-        let u = 
-        
-    }
-    
-}
-*/
-
-//type Result<T, E = Debug<diesel::result::Error>> = std::result::Result<T, E>;   
-
 type Result<T> = std::result::Result<T, String>;
 
 fn errstr(x: impl ToString) -> String {
     x.to_string()
 }
 
-const CACHETIME: u32 = 5 * 60;
-
-/*
- * Fetch key from cache and return it if there were no cache errors
- * or parse errors.
- */
-async fn cache_get<T: DeserializeOwned>(cache: &Cache, serv: &State<ServerState>, key: Arc<String>) -> Option<T> {
-    if !serv.use_cache { return None; }
-    let s: Vec<u8> = cache.run(move |c| c.get(&key)).await.ok()??;
-    rmp_serde::from_read_ref(&s).ok()
-}
-
-async fn cache_put(cache: &Cache, serv: &State<ServerState>, key: Arc<String>, x: &impl Serialize) -> Option<()>{
-    if !serv.use_cache { return None; }
-    let s: Vec<u8> = rmp_serde::to_vec(x).ok()?;
-    cache.run(move |c| c.set(&key, &*s, CACHETIME)).await.ok()
-}
-
-async fn get_user(db: &Db, cache: &Cache, serv: &State<ServerState>, name: String) -> Result<User> {
+async fn get_user(db: &Db, cache: &Cache, serv: &Server, name: String) -> Result<User> {
     let key = Arc::new(format!("user_{}", name));
-    if let Some(u) = cache_get(&cache, serv, key.clone()).await {
+    if let Some(u) = cache::get(&cache, serv, key.clone()).await {
         return Ok(u);
     }
 
     let u = db.run(move |c| users::table.filter(users::name.eq(&name)).first(c)).await.map_err(errstr)?;
-    cache_put(&cache, serv, key, &u).await;
+    cache::put(&cache, serv, key, &u).await;
     Ok(u)
 }
 
@@ -105,7 +73,7 @@ pub fn gen_token(rng: &mut StdRng) -> String {
 }
 
 #[post("/", format="json", data="<req>")]
-pub async fn auth(db: Db, cache: Cache, serv: &State<ServerState>, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
+pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
     let err = Json(AuthResp{ status: "error".to_owned(), result: None });
 
     // XXX to owned

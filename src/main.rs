@@ -1,5 +1,6 @@
 
 mod api;
+mod cache;
 mod db;
 
 #[macro_use] extern crate diesel;
@@ -7,6 +8,7 @@ mod db;
 use std::sync::Mutex;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
+use rocket::State;                                                              
 use rocket::serde::Deserialize; 
 use rocket_sync_db_pools::{database};                                   
 
@@ -23,6 +25,7 @@ struct AppConfig {
     use_cache: bool,
 }
 
+pub type Server = State<ServerState>;
 pub struct ServerState {
     pub rng: Mutex<StdRng>,
     pub use_cache: bool,
