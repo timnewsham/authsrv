@@ -2,7 +2,7 @@
 use std::sync::Arc;
 use argon2;
 use rocket::State;
-use rocket::serde::{Serialize, Deserialize, json::Json};
+use rocket::serde::{Serialize, Deserialize, DeserializeOwned, json::Json};
 use rmp_serde;
 use diesel::table;
 //use memcache::{FromMemcacheValue, MemcacheError};
@@ -76,9 +76,7 @@ const CACHETIME: u32 = 5 * 60;
  * Fetch key from cache and return it if there were no cache errors
  * or parse errors.
  */
-// XXX make this generic for all Deserializables
-//async fn cache_get<'a, T: Deserialize<'a>>(cache: &Cache, serv: &State<ServerState>, key: Arc<String>) -> Option<T> {
-async fn cache_get(cache: &Cache, serv: &State<ServerState>, key: Arc<String>) -> Option<User> {
+async fn cache_get<T: DeserializeOwned>(cache: &Cache, serv: &State<ServerState>, key: Arc<String>) -> Option<T> {
     if !serv.use_cache { return None; }
     let s: Vec<u8> = cache.run(move |c| c.get(&key)).await.ok()??;
     rmp_serde::from_read_ref(&s).ok()
