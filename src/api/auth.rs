@@ -14,14 +14,14 @@ use crate::model::user::{get_user};
 pub struct AuthReq<'r> {
     name: &'r str,
     secret: &'r str,
-    scopes: Vec<&'r str>,
+    scopes: HashSet<&'r str>,
 }
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct AuthState {
     token: String,
-    scopes: Vec<String>,
+    scopes: HashSet<String>,
     // XXX expire time, scopes, etc..
 }
 
@@ -47,23 +47,21 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
         Ok(x) => x,
         _ => return err,
     };
+    // XXX return failure if user account is expired
     if !argon2::verify_encoded(&u.hash, req.secret.as_bytes()).unwrap_or(false) {
         return err;
     }
 
-    // XXX return failure if user account is expired
-    // XXX remove any scopes that are no longer defined
-
-    let req_scopes: HashSet<_> = req.scopes.iter().copied().collect();
     let have_scopes: HashSet<_> = u.scopes.iter().map(|s| s.as_ref()).collect();
-    if !req_scopes.is_subset(&have_scopes) {
+    // XXX remove any scopes that are no longer defined
+    if !req.scopes.is_subset(&have_scopes) {
         return err;
     }
 
      // XXX insert token into db
     let astate = AuthState {
         token: gen_token(&serv.rng),
-        scopes: req_scopes.iter().copied().map(str::to_owned).collect(),
+        scopes: req.scopes.iter().copied().map(str::to_owned).collect(),
     };
     Json(AuthResp{ 
         status: "ok",
