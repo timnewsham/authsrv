@@ -10,8 +10,7 @@ use rocket_sync_db_pools::diesel::prelude::*;
 use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
-//use crate::state::ServerState;
-use crate::{Db, Cache, state::ServerState};
+use crate::{Db, Cache, ServerState};
 
 table! {
     users (name) {
@@ -89,15 +88,17 @@ async fn cache_put(cache: &Cache, key: Arc<String>, x: &impl Serialize) -> Optio
     cache.run(move |c| c.set(&key, &s, CACHETIME)).await.ok()
 }
 
-async fn get_user(db: &Db, cache: &Cache, name: String) -> Result<User> {
+async fn get_user(db: &Db, cache: &Cache, serv: &State<ServerState>, name: String) -> Result<User> {
+    if ! serv.use_cache {
+       return Ok(db.run(move |c| users::table.filter(users::name.eq(&name)).first(c)).await.map_err(errstr)?);
+    }
+
     let key = Arc::new(format!("user_{}", name));
     if let Some(u) = cache_get(&cache, key.clone()).await {
-        println!("fetched from cache");
         return Ok(u);
     }
 
     let u = db.run(move |c| users::table.filter(users::name.eq(&name)).first(c)).await.map_err(errstr)?;
-    println!("fetched from db");
     cache_put(&cache, key, &u).await;
     Ok(u)
 }
@@ -112,7 +113,7 @@ pub async fn auth(db: Db, cache: Cache, serv: &State<ServerState>, req: Json<Aut
     let err = Json(AuthResp{ status: "error".to_owned(), result: None });
 
     // XXX to owned
-    let u = match get_user(&db, &cache, req.name.to_owned()).await {
+    let u = match get_user(&db, &cache, serv, req.name.to_owned()).await {
         Ok(x) => x,
         _ => return err,
     };

@@ -1,5 +1,7 @@
 [default]
 use_tests = true # XXX false
+use_cache = true
+#use_cache = false
 
 [debug]
 use_tests = true

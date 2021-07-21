@@ -1,12 +1,12 @@
 
-#[macro_use] extern crate diesel;
-#[macro_use] extern crate rocket;
-
 mod api;
 mod db;
-//mod schema;
-mod state;
 
+#[macro_use] extern crate diesel;
+#[macro_use] extern crate rocket;
+use std::sync::Mutex;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 use rocket::serde::Deserialize; 
 use rocket_sync_db_pools::{database};                                   
 
@@ -20,6 +20,21 @@ pub struct Cache(memcache::Client);
 #[serde(crate = "rocket::serde")] 
 struct AppConfig {
     use_tests: bool,
+    use_cache: bool,
+}
+
+pub struct ServerState {
+    pub rng: Mutex<StdRng>,
+    pub use_cache: bool,
+}
+
+impl ServerState {
+    fn new(cfg: &AppConfig) -> Self {
+        ServerState {
+            rng: Mutex::new(StdRng::from_entropy()),
+            use_cache: cfg.use_cache,
+        }
+    }
 }
 
 #[launch]
@@ -27,6 +42,7 @@ fn rocket() -> _ {
     let mut b = rocket::build();
     let conf: AppConfig = b.figment().extract().expect("config");
 
+    println!("caching {}", if conf.use_cache { "enabled" } else { "disabled "});
     if conf.use_tests {
         b = b.mount("/test", routes![
                 api::test::health,
@@ -34,7 +50,7 @@ fn rocket() -> _ {
                 api::test::crasher])
     }
 
-    b.manage(state::ServerState::new())
+    b.manage(ServerState::new(&conf))
         .attach(Db::fairing())
         .attach(Cache::fairing())
         .mount("/auth", routes![api::auth::auth])

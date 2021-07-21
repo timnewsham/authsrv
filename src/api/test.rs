@@ -1,9 +1,11 @@
 
 use argon2;
+use rocket::State;                                                              
+use crate::ServerState;
 
 #[get("/")]
-pub fn health() -> &'static str {
-    "healthy\n"
+pub fn health(serv: &State<ServerState>) -> String {
+    format!("alive. caching is {}\n", if serv.use_cache { "enabled" } else { "disabled" })
 }
 
 // XXX for devel. remove me!
