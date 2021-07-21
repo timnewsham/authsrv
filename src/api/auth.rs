@@ -76,28 +76,28 @@ const CACHETIME: u32 = 5 * 60;
  * Fetch key from cache and return it if there were no cache errors
  * or parse errors.
  */
-async fn cache_get(cache: &Cache, key: Arc<String>) -> Option<User> {
+// XXX make this generic for all Deserializables
+//async fn cache_get<'a, T: Deserialize<'a>>(cache: &Cache, serv: &State<ServerState>, key: Arc<String>) -> Option<T> {
+async fn cache_get(cache: &Cache, serv: &State<ServerState>, key: Arc<String>) -> Option<User> {
+    if !serv.use_cache { return None; }
     let s: Vec<u8> = cache.run(move |c| c.get(&key)).await.ok()??;
     rmp_serde::from_read_ref(&s).ok()
 }
 
-async fn cache_put(cache: &Cache, key: Arc<String>, x: &impl Serialize) -> Option<()>{
+async fn cache_put(cache: &Cache, serv: &State<ServerState>, key: Arc<String>, x: &impl Serialize) -> Option<()>{
+    if !serv.use_cache { return None; }
     let s: Vec<u8> = rmp_serde::to_vec(x).ok()?;
     cache.run(move |c| c.set(&key, &*s, CACHETIME)).await.ok()
 }
 
 async fn get_user(db: &Db, cache: &Cache, serv: &State<ServerState>, name: String) -> Result<User> {
-    if ! serv.use_cache {
-       return Ok(db.run(move |c| users::table.filter(users::name.eq(&name)).first(c)).await.map_err(errstr)?);
-    }
-
     let key = Arc::new(format!("user_{}", name));
-    if let Some(u) = cache_get(&cache, key.clone()).await {
+    if let Some(u) = cache_get(&cache, serv, key.clone()).await {
         return Ok(u);
     }
 
     let u = db.run(move |c| users::table.filter(users::name.eq(&name)).first(c)).await.map_err(errstr)?;
-    cache_put(&cache, key, &u).await;
+    cache_put(&cache, serv, key, &u).await;
     Ok(u)
 }
 
