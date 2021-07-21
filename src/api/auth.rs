@@ -1,15 +1,17 @@
 
 use std::sync::Arc;
 use argon2;
-//use rocket::State;
+use rocket::State;
 use rocket::serde::{Serialize, Deserialize, json::Json};
 use serde_json;
 use diesel::table;
 //use memcache::{FromMemcacheValue, MemcacheError};
 use rocket_sync_db_pools::diesel::prelude::*;
+use rand::{Rng, rngs::StdRng};
+use hex::ToHex;
 
 //use crate::state::ServerState;
-use crate::{Db, Cache};
+use crate::{Db, Cache, state::ServerState};
 
 table! {
     users (name) {
@@ -100,8 +102,13 @@ async fn get_user(db: &Db, cache: &Cache, name: String) -> Result<User> {
     Ok(u)
 }
 
+pub fn gen_token(rng: &mut StdRng) -> String {
+    let bytes: [u8; 20] = rng.gen();
+    bytes.encode_hex()
+}
+
 #[post("/", format="json", data="<req>")]
-pub async fn auth(db: Db, cache: Cache, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
+pub async fn auth(db: Db, cache: Cache, serv: &State<ServerState>, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
     let err = Json(AuthResp{ status: "error".to_owned(), result: None });
 
     // XXX to owned
@@ -116,15 +123,15 @@ pub async fn auth(db: Db, cache: Cache, req: Json<AuthReq<'_>>) -> Json<AuthResp
     // XXX return failure if user account is expired
     // XXX remove any scopes that are no longer defined
 
-    // XXX to_owned
-    if !req.scopes.iter().all(|&s| u.scopes.contains(&s.to_owned())) {
+    // make sure the user has all of the requested scopes
+    if !req.scopes.iter().all(|&req| u.scopes.iter().any(|have| req == have)) {
         return err;
     }
 
-    let token = "XXX"; // XXX create token
      // XXX insert token into db
     let astate = AuthState {
-        token: token.to_owned(),
+        // unwrap() here can only panic if another thread already paniced while holding the mutex
+        token: gen_token(&mut serv.rng.lock().unwrap()), // safe
         scopes: req.scopes.iter().copied().map(str::to_owned).collect(),
     };
     Json(AuthResp{ 

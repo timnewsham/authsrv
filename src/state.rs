@@ -1,14 +1,16 @@
 
-use crate::db;
+use std::sync::Mutex;
+use rand::rngs::StdRng;
+use rand::SeedableRng;
 
 pub struct ServerState {
-    pub db: db::DB,
+    pub rng: Mutex<StdRng>,
 }
 
 impl ServerState {
     pub fn new() -> Self {
         ServerState {
-            db: db::DB::new(),
+            rng: Mutex::new(StdRng::from_entropy()),
         }
     }
 }
