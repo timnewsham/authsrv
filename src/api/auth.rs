@@ -1,31 +1,11 @@
 
-use std::sync::Arc;
 use argon2;
 use rocket::serde::{Serialize, Deserialize, json::Json};
-use diesel::table;
-use rocket_sync_db_pools::diesel::prelude::*;
 use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
 use crate::{Db, Cache, Server};
-use crate::cache;
-
-table! {
-    users (name) {
-        name -> Varchar,
-        hash -> Varchar,
-        scopes -> Array<Text>,
-    }
-}
-
-#[derive(Debug, Clone, Deserialize, Serialize, Queryable, Insertable)]
-#[serde(crate = "rocket::serde")]
-#[table_name="users"]
-struct User {
-    name: String,
-    hash: String,
-    scopes: Vec<String>,
-}
+use crate::model::user::{get_user};
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -50,24 +30,7 @@ pub struct AuthResp {
     result: Option<AuthState>,
 }
 
-type Result<T> = std::result::Result<T, String>;
-
-fn errstr(x: impl ToString) -> String {
-    x.to_string()
-}
-
-async fn get_user(db: &Db, cache: &Cache, serv: &Server, name: String) -> Result<User> {
-    let key = Arc::new(format!("user_{}", name));
-    if let Some(u) = cache::get(&cache, serv, key.clone()).await {
-        return Ok(u);
-    }
-
-    let u = db.run(move |c| users::table.filter(users::name.eq(&name)).first(c)).await.map_err(errstr)?;
-    cache::put(&cache, serv, key, &u).await;
-    Ok(u)
-}
-
-pub fn gen_token(rng: &mut StdRng) -> String {
+fn gen_token(rng: &mut StdRng) -> String {
     let bytes: [u8; 20] = rng.gen();
     bytes.encode_hex()
 }

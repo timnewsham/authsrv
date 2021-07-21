@@ -1,7 +1,7 @@
 
 mod api;
 mod cache;
-mod db;
+mod model;
 
 #[macro_use] extern crate diesel;
 #[macro_use] extern crate rocket;
@@ -11,6 +11,12 @@ use rand::SeedableRng;
 use rocket::State;                                                              
 use rocket::serde::Deserialize; 
 use rocket_sync_db_pools::{database};                                   
+
+pub type Result<T> = std::result::Result<T, String>;                                
+                                                                                
+pub fn errstr(x: impl ToString) -> String {                                         
+    x.to_string()                                                               
+} 
 
 #[database("diesel")]                                                           
 pub struct Db(diesel::PgConnection);  
