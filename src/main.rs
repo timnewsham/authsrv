@@ -13,6 +13,9 @@ use rocket_sync_db_pools::{database};
 #[database("diesel")]                                                           
 pub struct Db(diesel::PgConnection);  
 
+#[database("memcache")]
+pub struct Cache(memcache::Client);
+
 #[derive(Debug, Deserialize)]
 #[serde(crate = "rocket::serde")] 
 struct AppConfig {
@@ -33,5 +36,6 @@ fn rocket() -> _ {
 
     b.manage(state::ServerState::new())
         .attach(Db::fairing())
+        .attach(Cache::fairing())
         .mount("/auth", routes![api::auth::auth])
 }

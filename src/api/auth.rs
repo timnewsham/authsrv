@@ -2,12 +2,14 @@
 use argon2;
 //use rocket::State;
 use rocket::serde::{Serialize, Deserialize, json::Json};
-use rocket::response::{Debug};
+use serde_json;
+//use rocket::response::{Debug};
 use diesel::table;
+//use memcache::{FromMemcacheValue, MemcacheError};
 use rocket_sync_db_pools::diesel::prelude::*;
 
 //use crate::state::ServerState;
-use crate::Db;
+use crate::{Db, Cache};
 
 table! {
     users (name) {
@@ -49,19 +51,63 @@ pub struct AuthResp {
     result: Option<AuthState>,
 }
 
-type Result<T, E = Debug<diesel::result::Error>> = std::result::Result<T, E>;   
+/*
+impl FromMemcacheValue for User {
+    fn from_memcache_value(value: Vec<u8>, flags: u32) -> std::result::Result<Self, MemcacheError> {
+        let u = 
+        
+    }
+    
+}
+*/
 
-async fn get_user(db: &Db, name: String) -> Result<User> {
-    let u = db.run(|c| users::table.filter(users::name.eq(name)).first(c)).await?;
+//type Result<T, E = Debug<diesel::result::Error>> = std::result::Result<T, E>;   
+
+type Result<T> = std::result::Result<T, String>;
+
+fn errstr(x: impl ToString) -> String {
+    x.to_string()
+}
+
+const CACHETIME: u32 = 5 * 60;
+
+/*
+ * Fetch typ_key from cache and return it if there were no cache errors
+ * or parse errors.
+ */
+async fn cache_get(cache: &Cache, typ: &str, key: &str) -> Option<User> {
+    let key2 = format!("{}_{}", typ, key);
+    let s: String = cache.run(move |c| c.get(&key2)).await.ok()??;
+    // XXX isnt there some more compact and performant encoding we can use
+    // that supports Serialize/Deserialize?
+    serde_json::from_str(&s).ok()
+}
+
+async fn cache_put(cache: &Cache, typ: &str, key: &str, x: &impl Serialize) -> Option<()>{
+    let key2 = format!("{}_{}", typ, key);
+    let s = serde_json::to_string(x).ok()?;
+    cache.run(move |c| c.set(&key2, &s, CACHETIME)).await.ok()
+}
+
+async fn get_user(db: &Db, cache: &Cache, name: String) -> Result<User> {
+    if let Some(u) = cache_get(&cache, "user", &name).await {
+        println!("fetched from cache");
+        return Ok(u);
+    }
+
+    let namecopy = name.clone();
+    let u = db.run(move |c| users::table.filter(users::name.eq(&namecopy)).first(c)).await.map_err(errstr)?;
+    println!("fetched from db");
+    cache_put(&cache, "user", &name, &u).await;
     Ok(u)
 }
 
 #[post("/", format="json", data="<req>")]
-pub async fn auth(db: Db, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
+pub async fn auth(db: Db, cache: Cache, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
     let err = Json(AuthResp{ status: "error".to_owned(), result: None });
 
-    // XXX to_owned!
-    let u = match get_user(&db, req.name.to_owned()).await {
+    // XXX to owned
+    let u = match get_user(&db, &cache, req.name.to_owned()).await {
         Ok(x) => x,
         _ => return err,
     };

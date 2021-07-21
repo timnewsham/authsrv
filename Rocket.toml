@@ -1,12 +1,14 @@
 [default]
-use_tests = false
+use_tests = true # XXX false
 
 [debug]
 use_tests = true
 
 # Configure instead with
 # export ROCKET_DATABASES='{diesel={url=postgres://user:pw@localhost/oauth}}'
-#
-#  [default.databases.diesel]
-#  url = "postgres://user:pw@localhost/oauth"
+[default.databases.diesel]
+url = "postgres://user:pw@localhost/oauth"
+
+[default.databases.memcache]
+url = "memcache://127.0.0.1:11211?timeout=10&tcp_nodelay=true"
 
