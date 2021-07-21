@@ -24,8 +24,12 @@ pub struct User {
     pub scopes: Vec<String>,
 }
 
+fn cache_key(k: &str) -> Arc<String> {
+    Arc::new(format!("user_{}", k))
+}
+
 pub async fn get_user(db: &Db, cache: &Cache, serv: &Server, name: String) -> Result<User> {
-    let key = Arc::new(format!("user_{}", name));
+    let key = cache_key(&name);
     if let Some(u) = cache::get(&cache, serv, key.clone()).await {
         return Ok(u);
     }
