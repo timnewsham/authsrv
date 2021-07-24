@@ -4,21 +4,15 @@ version = "0.1.0"
 authors = ["Tim Newsham <tim.newsham@gmail.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 rocket = { version = "0.5.0-rc.1", features = ["json"] }
 diesel = { version = "1.3", features = ["postgres", "r2d2"] }
 diesel_migrations = "1.3"
 rust-argon2 = "0.8"
-memcache = "0.15"
-#serde_json = "1.0.26"
-rmp-serde = "0.15.5"
 rand = "0.8.4"
 hex = "0.4.3"
 
-# XXX I get errors.. why?
 [dependencies.rocket_sync_db_pools]
 version = "0.1.0-rc.1"
 default-features = false
-features = ["diesel_postgres_pool", "memcache_pool"]
+features = ["diesel_postgres_pool"]

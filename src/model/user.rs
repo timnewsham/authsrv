@@ -36,6 +36,7 @@ pub async fn get_user(db: &Db, cache: &Cache, serv: &Server, name: String) -> Re
 
     let u = db.run(move |c| users::table.filter(users::name.eq(&name)).first(c)).await.map_err(errstr)?;
     cache::put(&cache, serv, key, &u).await;
+
     Ok(u)
 }
 

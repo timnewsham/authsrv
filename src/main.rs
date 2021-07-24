@@ -21,8 +21,11 @@ pub fn errstr(x: impl ToString) -> String {
 #[database("diesel")]                                                           
 pub struct Db(diesel::PgConnection);  
 
-#[database("memcache")]
-pub struct Cache(memcache::Client);
+//#[database("redis")]
+//pub struct Cache(redis::Connection);
+// XXX temp hack to stub out cache
+#[database("diesel")]                                                           
+pub struct Cache(diesel::PgConnection);  
 
 #[derive(Debug, Deserialize)]
 #[serde(crate = "rocket::serde")] 
