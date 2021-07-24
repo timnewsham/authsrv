@@ -2,6 +2,7 @@
 mod api;
 mod cache;
 mod model;
+mod redis_support;
 
 #[macro_use] extern crate diesel;
 #[macro_use] extern crate rocket;
@@ -11,6 +12,7 @@ use rand::SeedableRng;
 use rocket::State;                                                              
 use rocket::serde::Deserialize; 
 use rocket_sync_db_pools::{database};                                   
+//use redis;
 
 pub type Result<T> = std::result::Result<T, String>;                                
                                                                                 
@@ -24,8 +26,8 @@ pub struct Db(diesel::PgConnection);
 //#[database("redis")]
 //pub struct Cache(redis::Connection);
 // XXX temp hack to stub out cache
-#[database("diesel")]                                                           
-pub struct Cache(diesel::PgConnection);  
+#[database("redis")]                                                           
+pub struct Cache(redis_support::Connection);
 
 #[derive(Debug, Deserialize)]
 #[serde(crate = "rocket::serde")] 
