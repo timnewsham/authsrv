@@ -12,7 +12,6 @@ use rand::SeedableRng;
 use rocket::State;                                                              
 use rocket::serde::Deserialize; 
 use rocket_sync_db_pools::{database};                                   
-//use redis;
 
 pub type Result<T> = std::result::Result<T, String>;                                
                                                                                 

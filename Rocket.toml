@@ -12,6 +12,6 @@ use_tests = true
 [default.databases.diesel]
 url = "postgres://user:pw@localhost/oauth"
 
-[default.databases.memcache]
-url = "memcache://127.0.0.1:11211?timeout=10&tcp_nodelay=true"
+[default.databases.redis]
+url = "redis://127.0.0.1/"
 
