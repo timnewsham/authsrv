@@ -1,19 +1,11 @@
 
 use std::sync::Arc;
 use rocket::serde::{Serialize, Deserialize};
-use diesel::table;
 use rocket_sync_db_pools::diesel::prelude::*;
 
 use crate::{Db, Cache, Server, Result, errstr};
 use crate::cache;
-
-table! {
-    users (name) {
-        name -> Varchar,
-        hash -> Varchar,
-        scopes -> Array<Text>,
-    }
-}
+use crate::schema::users;
 
 #[derive(Debug, Clone, Deserialize, Serialize, Queryable, Insertable)]
 #[serde(crate = "rocket::serde")]

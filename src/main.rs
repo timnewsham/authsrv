@@ -1,11 +1,13 @@
 
+#[macro_use] extern crate diesel;
+#[macro_use] extern crate rocket;
+
 mod api;
 mod cache;
 mod model;
 mod redis_support;
+mod schema;
 
-#[macro_use] extern crate diesel;
-#[macro_use] extern crate rocket;
 use std::sync::Mutex;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
