@@ -23,9 +23,6 @@ pub fn errstr(x: impl ToString) -> String {
 #[database("diesel")]                                                           
 pub struct Db(diesel::PgConnection);  
 
-//#[database("redis")]
-//pub struct Cache(redis::Connection);
-// XXX temp hack to stub out cache
 #[database("redis")]                                                           
 pub struct Cache(redis_support::Connection);
 
