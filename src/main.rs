@@ -6,7 +6,6 @@ mod api;
 mod cache;
 mod model;
 mod redis_support;
-mod schema;
 
 use std::sync::Mutex;
 use rand::rngs::StdRng;

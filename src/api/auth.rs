@@ -38,6 +38,10 @@ fn gen_token(rng: &Mutex<StdRng>) -> String {
     bytes.encode_hex()
 }
 
+fn password_valid(hash: &str, pw: &str) -> bool {
+    argon2::verify_encoded(hash, pw.as_bytes()).unwrap_or(false)
+}
+
 #[post("/", format="json", data="<req>")]
 pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
     let err = Json(AuthResp{ status: "error", result: None });
@@ -47,8 +51,8 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
         Ok(x) => x,
         _ => return err,
     };
-    // XXX return failure if user account is expired
-    if !argon2::verify_encoded(&u.hash, req.secret.as_bytes()).unwrap_or(false) {
+
+    if !u.is_enabled() || !password_valid(&u.hash, &req.secret) {
         return err;
     }
 
