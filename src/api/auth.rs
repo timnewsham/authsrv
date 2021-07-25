@@ -9,6 +9,7 @@ use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
 use crate::{Db, Cache, Server};
+use crate::json::{JsonRes, json_err, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
 use crate::model::{user, scopes, token};
 
 #[derive(Deserialize)]
@@ -45,22 +46,14 @@ fn password_valid(hash: &str, pw: &str) -> bool {
 }
 
 #[post("/", format="json", data="<req>")]
-pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -> Json<AuthResp> {
-    let err = Json(AuthResp{ status: "error", result: None });
-
+pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -> JsonRes<AuthResp> {
     // XXX to owned
-    let u = match user::get_user(&db, &cache, serv, req.name.to_owned()).await {
-        Ok(x) => x,
-        _ => return err,
-    };
-    let all_scopes: Vec<String> = match scopes::get_scopes(&db, &cache, serv).await {
-        Ok(x) => x,
-        _ => return err,
-    };
+    let u = user::get_user(&db, &cache, serv, req.name.to_owned()).await.or(json_err(ERR_FAILED))?;
+    let all_scopes: Vec<String> = scopes::get_scopes(&db, &cache, serv).await.or(json_err(ERR_FAILED))?;
 
     // fail if disabled, expired, or if provided credentials are bad
     if !u.is_enabled() || !password_valid(&u.hash, &req.secret) {
-        return err;
+        return json_err(ERR_BADAUTH);
     }
 
     /*
@@ -80,7 +73,7 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
     for want in req.scopes.iter() {
         if !all_scopes.iter().any(|active| want == active)
         || !u.scopes.iter().any(|have| want == have) {
-            return err;
+            return json_err(ERR_BADSCOPES);
         }
     }
 
@@ -96,10 +89,7 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
         expiration: exp,
         scopes: granted_scopes.clone(),
     };
-    match token::put_token(&db, &cache, serv, &sess).await {
-        Err(_) => return err,
-        Ok(_) => ()
-    }
+    token::put_token(&db, &cache, serv, &sess).await.or(json_err(ERR_FAILED))?;
 
     // and send it back to the user
     let astate = AuthState {
@@ -107,9 +97,9 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
         scopes: granted_scopes,
         life: life.as_secs(),
     };
-    Json(AuthResp{
+    Ok(Json(AuthResp{
         status: "ok",
         result: Some(astate)
-    })
+    }))
 }
 

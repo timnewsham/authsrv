@@ -4,6 +4,7 @@
 
 mod api;
 mod cache;
+mod json;
 mod model;
 mod redis_support;
 
