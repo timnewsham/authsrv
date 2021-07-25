@@ -9,7 +9,7 @@ use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
 use crate::{Db, Cache, Server};
-use crate::json::{JsonRes, json_err, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
+use crate::json::{JsonRes, IntoJErr, json_err, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
 use crate::model::{user, scopes, token};
 
 #[derive(Deserialize)]
@@ -48,27 +48,14 @@ fn password_valid(hash: &str, pw: &str) -> bool {
 #[post("/", format="json", data="<req>")]
 pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -> JsonRes<AuthResp> {
     // XXX to owned
-    let u = user::get_user(&db, &cache, serv, req.name.to_owned()).await.or(json_err(ERR_FAILED))?;
-    let all_scopes: Vec<String> = scopes::get_scopes(&db, &cache, serv).await.or(json_err(ERR_FAILED))?;
+    let u = user::get_user(&db, &cache, serv, req.name.to_owned()).await.map_jerr(ERR_FAILED)?;
+    let all_scopes: Vec<String> = scopes::get_scopes(&db, &cache, serv).await.map_jerr(ERR_FAILED)?;
 
     // fail if disabled, expired, or if provided credentials are bad
     if !u.is_enabled() || !password_valid(&u.hash, &req.secret) {
         return json_err(ERR_BADAUTH);
     }
 
-    /*
-    // filter out any scopes that are no longer valid
-    // XXX this is ugly.. there has to be a cleaner way
-    let all_scope_set: HashSet<&str> = all_scopes.iter().map(|s| s.as_ref()).collect();
-    let req_scopes: HashSet<&str> = req.scopes.iter().map(|s| *s).collect();
-    let have_scopes_pre: HashSet<&str> = u.scopes.iter().map(|s| s.as_ref()).collect();
-    let have_scopes: HashSet<&str> = all_scope_set.intersection(&have_scopes_pre).map(|s| s.as_ref()).collect();
-
-    // fail if any requested scopes don't belong to the user
-    if !req_scopes.is_subset(&have_scopes) {
-        return err;
-    }
-    */
     // fail if any requested scope is no longer active or doesnt belong to the user
     for want in req.scopes.iter() {
         if !all_scopes.iter().any(|active| want == active)
@@ -89,7 +76,7 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
         expiration: exp,
         scopes: granted_scopes.clone(),
     };
-    token::put_token(&db, &cache, serv, &sess).await.or(json_err(ERR_FAILED))?;
+    token::put_token(&db, &cache, serv, &sess).await.map_jerr(ERR_FAILED)?;
 
     // and send it back to the user
     let astate = AuthState {
