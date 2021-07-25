@@ -7,7 +7,7 @@ use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
 use crate::{Db, Cache, Server};
-use crate::model::user::{get_user};
+use crate::model::{user, scopes};
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -47,25 +47,45 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
     let err = Json(AuthResp{ status: "error", result: None });
 
     // XXX to owned
-    let u = match get_user(&db, &cache, serv, req.name.to_owned()).await {
+    let u = match user::get_user(&db, &cache, serv, req.name.to_owned()).await {
+        Ok(x) => x,
+        _ => return err,
+    };
+    let all_scopes: Vec<String> = match scopes::get_scopes(&db, &cache, serv).await {
         Ok(x) => x,
         _ => return err,
     };
 
+    // fail if disabled, expired, or if provided credentials are bad
     if !u.is_enabled() || !password_valid(&u.hash, &req.secret) {
         return err;
     }
 
-    let have_scopes: HashSet<_> = u.scopes.iter().map(|s| s.as_ref()).collect();
-    // XXX remove any scopes that are no longer defined
-    if !req.scopes.is_subset(&have_scopes) {
+    /*
+    // filter out any scopes that are no longer valid
+    // XXX this is ugly.. there has to be a cleaner way
+    let all_scope_set: HashSet<&str> = all_scopes.iter().map(|s| s.as_ref()).collect();
+    let req_scopes: HashSet<&str> = req.scopes.iter().map(|s| *s).collect();
+    let have_scopes_pre: HashSet<&str> = u.scopes.iter().map(|s| s.as_ref()).collect();
+    let have_scopes: HashSet<&str> = all_scope_set.intersection(&have_scopes_pre).map(|s| s.as_ref()).collect();
+
+    // fail if any requested scopes don't belong to the user
+    if !req_scopes.is_subset(&have_scopes) {
         return err;
     }
+    */
+    // fail if any requested scope is no longer active or doesnt belong to the user
+    for want in req.scopes.iter() {
+        if !all_scopes.iter().any(|active| want == active)
+        || !u.scopes.iter().any(|have| want == have) {
+            return err;
+        }
+    }
 
-     // XXX insert token into db
+    // XXX insert token into db
     let astate = AuthState {
         token: gen_token(&serv.rng),
-        scopes: req.scopes.iter().copied().map(str::to_owned).collect(),
+        scopes: req.scopes.iter().map(|s| (*s).to_owned()).collect(),
     };
     Json(AuthResp{ 
         status: "ok",

@@ -1,5 +1,4 @@
 
-use std::collections::HashSet;
 use std::sync::Arc;
 use rocket::serde::{Serialize, Deserialize};
 use rocket_sync_db_pools::diesel::prelude::*;
@@ -20,15 +19,15 @@ fn cache_key() -> Arc<String> {
     Arc::new("scopes".to_string())
 }
 
-pub async fn get_scopes(db: &Db, cache: &Cache, serv: &Server) -> Result<HashSet<String>> {
+pub async fn get_scopes(db: &Db, cache: &Cache, serv: &Server) -> Result<Vec<String>> {
     let key = cache_key();
     if let Some(u) = cache::get(&cache, serv, key.clone()).await {
         return Ok(u);
     }
 
-    let names: Vec<Scope> = db.run(move |c| scopes::table.load(c)).await.map_err(errstr)?;
-    let name_set = names.into_iter().map(|sc| sc.name).collect();
-    cache::put(&cache, serv, key, &name_set).await;
-    Ok(name_set)
+    let scopes: Vec<Scope> = db.run(move |c| scopes::table.load(c)).await.map_err(errstr)?;
+    let names = scopes.into_iter().map(|sc| sc.name).collect();
+    cache::put(&cache, serv, key, &names).await;
+    Ok(names)
 }
 
