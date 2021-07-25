@@ -1,5 +1,7 @@
 
 use std::collections::HashSet;
+use std::ops::Add;
+use std::time::{Duration, SystemTime};
 use std::sync::Mutex;
 use argon2;
 use rocket::serde::{Serialize, Deserialize, json::Json};
@@ -7,7 +9,7 @@ use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
 use crate::{Db, Cache, Server};
-use crate::model::{user, scopes};
+use crate::model::{user, scopes, token};
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -21,8 +23,8 @@ pub struct AuthReq<'r> {
 #[serde(crate = "rocket::serde")]
 pub struct AuthState {
     token: String,
-    scopes: HashSet<String>,
-    // XXX expire time, scopes, etc..
+    scopes: Vec<String>,
+    life: u64,
 }
 
 #[derive(Serialize)]
@@ -82,14 +84,32 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
         }
     }
 
-    // XXX insert token into db
-    let astate = AuthState {
-        token: gen_token(&serv.rng),
-        scopes: req.scopes.iter().map(|s| (*s).to_owned()).collect(),
+    let tokstr = gen_token(&serv.rng);
+    let life = Duration::new(60 * 60, 0); // XXX config
+    let exp = SystemTime::now().add(life);
+    let granted_scopes: Vec<String> = req.scopes.iter().copied().map(|s| s.to_owned()).collect();
+
+    // add session to our store
+    let sess = token::Token {
+        token: tokstr.clone(),
+        username: u.name.clone(),
+        expiration: exp,
+        scopes: granted_scopes.clone(),
     };
-    Json(AuthResp{ 
+    match token::put_token(&db, &cache, serv, &sess).await {
+        Err(_) => return err,
+        Ok(_) => ()
+    }
+
+    // and send it back to the user
+    let astate = AuthState {
+        token: tokstr,
+        scopes: granted_scopes,
+        life: life.as_secs(),
+    };
+    Json(AuthResp{
         status: "ok",
-        result: Some(astate) 
+        result: Some(astate)
     })
 }
 
