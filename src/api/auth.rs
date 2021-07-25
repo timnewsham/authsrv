@@ -45,23 +45,30 @@ fn password_valid(hash: &str, pw: &str) -> bool {
     argon2::verify_encoded(hash, pw.as_bytes()).unwrap_or(false)
 }
 
+fn scopes_valid<'r>(req_scopes: &HashSet<&'r str>, have_scopes: &Vec<String>, active_scopes: &Vec<String>) -> bool {
+    // fail if any requested scope is no longer active or doesnt belong to the user
+    for want in req_scopes.iter() {
+        if !active_scopes.iter().any(|active| want == active)
+        || !have_scopes.iter().any(|have| want == have) {
+            return false;
+        }
+    }
+    return true;
+}
+
 #[post("/", format="json", data="<req>")]
 pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -> JsonRes<AuthResp> {
     // XXX to owned
     let u = user::get_user(&db, &cache, serv, req.name.to_owned()).await.map_jerr(ERR_FAILED)?;
-    let all_scopes: Vec<String> = scopes::get_scopes(&db, &cache, serv).await.map_jerr(ERR_FAILED)?;
+    let active_scopes: Vec<String> = scopes::get_scopes(&db, &cache, serv).await.map_jerr(ERR_FAILED)?;
 
     // fail if disabled, expired, or if provided credentials are bad
-    if !u.is_enabled() || !password_valid(&u.hash, &req.secret) {
+    if !u.is_enabled() 
+    || !password_valid(&u.hash, &req.secret) {
         return json_err(ERR_BADAUTH);
     }
-
-    // fail if any requested scope is no longer active or doesnt belong to the user
-    for want in req.scopes.iter() {
-        if !all_scopes.iter().any(|active| want == active)
-        || !u.scopes.iter().any(|have| want == have) {
-            return json_err(ERR_BADSCOPES);
-        }
+    if !scopes_valid(&req.scopes, &u.scopes, &active_scopes) {
+        return json_err(ERR_BADSCOPES);
     }
 
     let tokstr = gen_token(&serv.rng);
