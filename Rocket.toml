@@ -3,6 +3,7 @@ use_tests = true # XXX false
 cache_lifetime = 300 # 5 minutes
 use_cache = true
 #use_cache = false
+token_lifetime = 3600 # 1hr
 
 [debug]
 use_tests = true

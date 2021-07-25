@@ -85,7 +85,7 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
     }
 
     let tokstr = gen_token(&serv.rng);
-    let life = Duration::new(60 * 60, 0); // XXX config
+    let life = Duration::new(serv.token_lifetime, 0);
     let exp = SystemTime::now().add(life);
     let granted_scopes: Vec<String> = req.scopes.iter().copied().map(|s| s.to_owned()).collect();
 

@@ -32,6 +32,7 @@ struct AppConfig {
     use_tests: bool,
     use_cache: bool,
     cache_lifetime: u32,
+    token_lifetime: u64,
 }
 
 pub type Server = State<ServerState>;
@@ -39,6 +40,7 @@ pub struct ServerState {
     pub rng: Mutex<StdRng>,
     pub use_cache: bool,
     pub cache_lifetime: u32,
+    pub token_lifetime: u64,
 }
 
 impl ServerState {
@@ -47,6 +49,7 @@ impl ServerState {
             rng: Mutex::new(StdRng::from_entropy()),
             use_cache: cfg.use_cache,
             cache_lifetime: cfg.cache_lifetime,
+            token_lifetime: cfg.token_lifetime,
         }
     }
 }
