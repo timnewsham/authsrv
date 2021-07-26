@@ -70,8 +70,8 @@ impl<'r> FromRequest<'r> for BearerToken {
 
 // Wraps up Cache and Db and Server, since they're all needed together
 pub struct CachedDb<'r> {
-    pub cache: &'r Cache,
-    pub db: &'r Db,
+    pub cache: Cache,
+    pub db: Db,
     pub serv: &'r Server,
 }
 
@@ -80,9 +80,9 @@ impl <'r> FromRequest<'r> for CachedDb<'r> {
     type Error = ();
 
     async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, ()> {
-        let cache = request.rocket().state::<Cache>().expect("cant get cache pool");
-        let db = request.rocket().state::<Db>().expect("cant get db pool");
-        let serv = request.rocket().state::<Server>().expect("cant get server state");
+        let cache = request.guard::<Cache>().await.expect("cant get cache pool");
+        let db = request.guard::<Db>().await.expect("cant get db pool");
+        let serv = request.guard::<&Server>().await.expect("cant get server state");
         Ok(CachedDb{ cache: cache, db: db, serv: serv })
             .or_forward(())
     }
