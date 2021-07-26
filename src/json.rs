@@ -46,3 +46,12 @@ impl <T, E: std::fmt::Debug> IntoJErr<T> for Result<T, E> {
         }
     }
 }
+
+impl <T> IntoJErr<T> for Option<T> {
+    fn map_jerr(self, errmsg: &'static str) -> Result<T, Json<JsonError>> {
+        match self {
+            Some(x) => Ok(x),
+            None => json_err(errmsg),
+        }
+    }
+}
