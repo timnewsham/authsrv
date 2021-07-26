@@ -18,7 +18,8 @@ pub struct WithStatus<T: Serialize> {
 }
 
 // Results wrapped up as JSON
-type JsonError = Json<WithStatus<&'static str>>;
+type Error = WithStatus<&'static str>;
+type JsonError = Json<Error>;
 type JsonWithStatus<T> = Json<WithStatus<T>>;
 
 // A JsonRes<T> is success or error wrapped in a Json message with a status field.

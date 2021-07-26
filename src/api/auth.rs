@@ -10,7 +10,7 @@ use hex::ToHex;
 
 use crate::rocktypes::{BearerToken, CachedDb};
 use crate::model::{user, scopes, token};
-use crate::json::{StrRes, JsonRes, json_res, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
+use crate::json::{StatusErr, StrRes, JsonRes, json_res, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -49,9 +49,18 @@ fn scopes_valid(req_scopes: &HashSet<&'_ str>, have_scopes: &Vec<String>, active
     return true;
 }
 
+fn catch_notfound(msg: String) -> StatusErr {
+    if msg == "NotFound" {
+        ERR_BADAUTH
+    } else {
+        println!("error {}", msg);
+        ERR_FAILED
+    }
+}
+
 pub async fn auth_sr(cdb: CachedDb<'_>, req: Json<AuthReq<'_>>) -> StrRes<AuthResp> {
     // XXX to owned
-    let u = user::get_user(&cdb, req.name.to_owned()).await.or(Err(ERR_FAILED))?;
+    let u = user::get_user(&cdb, req.name.to_owned()).await.map_err(catch_notfound)?;
     let active_scopes: Vec<String> = scopes::get_scopes(&cdb).await.or(Err(ERR_FAILED))?;
 
     // fail if disabled, expired, or if provided credentials are bad
