@@ -1,10 +1,13 @@
 
+use rocket::http::Status;
 use rocket::serde::{Serialize, json::Json};
 
-pub const ERR_FAILED: &'static str = "failed";
-pub const ERR_BADAUTH: &'static str = "auth failure";
-pub const ERR_BADSCOPES: &'static str = "bad scopes";
-pub const ERR_EXPIRED: &'static str = "expired";
+pub struct StatusErr(&'static str, Status);
+
+pub const ERR_FAILED: StatusErr = StatusErr("failed", Status::Ok);
+pub const ERR_BADAUTH: StatusErr = StatusErr("auth failure", Status::Unauthorized);
+pub const ERR_BADSCOPES: StatusErr = StatusErr("bad scopes", Status::Unauthorized);
+pub const ERR_EXPIRED: StatusErr = StatusErr("expired", Status::Unauthorized);
 
 // A result with a status message
 #[derive(Serialize)]
@@ -19,26 +22,25 @@ type JsonError = Json<WithStatus<&'static str>>;
 type JsonWithStatus<T> = Json<WithStatus<T>>;
 
 // A JsonRes<T> is success or error wrapped in a Json message with a status field.
-pub type JsonRes<T> = Result<JsonWithStatus<T>, JsonError>;
+pub type JsonRes<T> = (Status, Result<JsonWithStatus<T>, JsonError>);
 
-// A StrRes is success or an error string.
-pub type StrRes<T> = Result<T, &'static str>;
+// A StrRes is success or an error string and a status code.
+pub type StrRes<T> = Result<T, StatusErr>;
 
-// Convert a StrRes<T> into a JsonRes<T>
+// Convert a StrRes<T> into a JsonRes<T> with a status code
 pub fn json_res<T: Serialize>(res: StrRes<T>) -> JsonRes<T> {
-    // XXX in the future would be nice to set HTTP response codes with these, too...
     match res {
-        Ok(v) => Ok(Json(WithStatus{ status: "ok", result: v, })),
-        Err(msg) => Err(Json(WithStatus{ status: "error", result: msg, }))
+        Ok(v) => 
+            (Status::Ok, 
+             Ok(Json(WithStatus{ status: "ok", result: v, }))),
+        Err(StatusErr(msg, code)) => 
+            (code, 
+             Err(Json(WithStatus{ status: "error", result: msg, }))),
     }
 }
 
 // XXX move elsewhere
-pub fn true_or_err<T>(ok: bool, okval: T, errmsg: &'static str) -> Result<T, &'static str> {
-    if ok {
-        Ok(okval)
-    } else {
-        Err(errmsg)
-    }
+pub fn true_or_err<T, E>(ok: bool, okval: T, errval: E) -> Result<T, E> {
+    if ok { Ok(okval) } else { Err(errval) }
 }
 
