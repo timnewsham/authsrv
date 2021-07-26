@@ -9,8 +9,9 @@ use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
 use crate::{Db, Cache, Server};
-use crate::json::{JsonRes, IntoJErr, json_err, JsonError, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES, ERR_EXPIRED};
+use crate::json::{JsonRes, IntoJErr, json_err, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
 use crate::model::{user, scopes, token};
+use crate::rocktypes::{BearerToken};
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -87,58 +88,6 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
         life: tok.seconds_left(),
     };
     Ok(Json(astate))
-}
-
-
-///-------------------
-use rocket::request::{self, FromRequest, Request};  
-use rocket::outcome::IntoOutcome;
-use rocket::http::Status;
-
-// Authorization information from bearer token
-pub struct BearerToken {
-    pub header: String,
-}
-
-impl BearerToken {
-    pub fn new(hdr: &str) -> Self {
-        BearerToken{ header: hdr.to_owned() }
-    }
-
-    // Lookup the token data associated with the bearer token and return it or an auth error
-    pub async fn lookup(&self, db: &Db, cache: &Cache, serv: &Server) -> Result<token::Token, Json<JsonError>> {
-        let tok = token::get_token(db, cache, serv, self.header.clone()).await.map_jerr(ERR_BADAUTH)?;
-        if tok.is_expired() {
-            json_err(ERR_EXPIRED)
-        } else {
-            Ok(tok)
-        }
-    }
-
-    // Return an auth error if scope isn't associated with the bearer token
-    pub async fn require_scope(&self, db: &Db, cache: &Cache, serv: &Server, scope: &str) -> Result<(), Json<JsonError>> {
-        let tok = self.lookup(db, cache, serv).await?;
-        if tok.scopes.iter().any(|have| have == scope) {
-            Ok(())
-        } else {
-            json_err(ERR_BADAUTH)
-        }
-    }
-}
-
-#[rocket::async_trait]
-impl<'r> FromRequest<'r> for BearerToken {
-    type Error = Json<JsonError>;
-
-    async fn from_request(request: &'r Request<'_>) -> request::Outcome<BearerToken, Self::Error> {
-        request.headers()
-            .get_one("Authorization")
-            .and_then(|h| h.strip_prefix("bearer "))
-            .map(BearerToken::new)
-            // XXX how can we return 401 and have it be json?
-            //.into_outcome((Status::Unauthorized, Json(JsonError::new(ERR_BADAUTH))))
-            .into_outcome((Status::Ok, Json(JsonError::new(ERR_BADAUTH))))
-    }
 }
 
 #[derive(Serialize)]

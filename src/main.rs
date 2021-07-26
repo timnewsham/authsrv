@@ -7,6 +7,7 @@ mod cache;
 mod json;
 mod model;
 mod redis_support;
+mod rocktypes;
 
 use std::sync::Mutex;
 use rand::rngs::StdRng;
