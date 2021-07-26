@@ -9,7 +9,7 @@ use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
 use crate::{Db, Cache, Server};
-use crate::json::{JsonRes, IntoJErr, json_err, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
+use crate::json::{JsonRes, IntoJErr, json_err, JsonError, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
 use crate::model::{user, scopes, token};
 
 #[derive(Deserialize)]
@@ -63,7 +63,7 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
     let active_scopes: Vec<String> = scopes::get_scopes(&db, &cache, serv).await.map_jerr(ERR_FAILED)?;
 
     // fail if disabled, expired, or if provided credentials are bad
-    if !u.is_enabled() 
+    if !u.is_enabled()
     || !password_valid(&u.hash, &req.secret) {
         return json_err(ERR_BADAUTH);
     }
@@ -95,5 +95,58 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
         status: "ok",
         result: Some(astate)
     }))
+}
+
+
+///-------------------
+use std::array::IntoIter;
+use std::iter::FromIterator;
+use rocket::request::{self, FromRequest, Request};  
+use rocket::outcome::IntoOutcome;
+use rocket::http::Status;
+
+// Authorization information from bearer token
+pub struct Authed {
+    pub scopes: HashSet<String>,
+}
+
+fn validate_auth_header<'a>(hdr: &'a str) -> Option<Authed> {
+    let tok = hdr.strip_prefix("bearer ")?;
+    if tok != "XXX" {
+        return None;
+    }
+
+    Some(Authed {
+        scopes: HashSet::<_>::from_iter(IntoIter::new(["test".to_owned(), "authadmin".to_owned()])),
+    })
+}
+
+#[rocket::async_trait]
+impl<'r> FromRequest<'r> for Authed {
+    type Error = Json<JsonError>;
+
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Authed, Self::Error> {
+        request.headers()
+            .get_one("Authorization")
+            .and_then(validate_auth_header)
+            // XXX how can we return 401 and have it be json?
+            //.into_outcome((Status::Unauthorized, Json(JsonError::new(ERR_BADAUTH))))
+            .into_outcome((Status::Ok, Json(JsonError::new(ERR_BADAUTH))))
+    }
+}
+
+#[derive(Serialize)]
+#[serde(crate = "rocket::serde")]
+pub struct ScopesResp {
+    status: &'static str,
+    result: HashSet<String>,
+}
+
+#[get("/", format="json")]
+pub async fn check_auth(db: Db, cache: Cache, authed: Authed) -> Json<ScopesResp> {
+    Json(ScopesResp {
+        status: "succes",
+        result: authed.scopes.clone(),
+    })
 }
 

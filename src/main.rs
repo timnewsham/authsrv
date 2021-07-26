@@ -71,5 +71,6 @@ fn rocket() -> _ {
     b.manage(ServerState::new(&conf))
         .attach(Db::fairing())
         .attach(Cache::fairing())
-        .mount("/auth", routes![api::auth::auth])
+        .mount("/auth", routes![api::auth::auth,
+                                api::auth::check_auth])
 }

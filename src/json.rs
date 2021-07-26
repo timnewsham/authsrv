@@ -5,11 +5,20 @@ pub const ERR_FAILED: &'static str = "failed";
 pub const ERR_BADAUTH: &'static str = "auth failure";
 pub const ERR_BADSCOPES: &'static str = "bad scopes";
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 #[serde(crate = "rocket::serde")]
 pub struct JsonError {
     status: &'static str,
     result: &'static str,
+}
+
+impl JsonError {
+    pub fn new(msg: &'static str) -> Self {
+        JsonError{
+            status: "error",
+            result: msg,
+        }
+    }
 }
 
 // A Json<T> result or a Json error
@@ -21,10 +30,7 @@ pub trait IntoJErr<T> {
 }
 
 pub fn json_err<T>(msg: &'static str) -> Result<T, Json<JsonError>> {
-    Err(Json(JsonError {
-        status: "error",
-        result: msg,
-    }))
+    Err(Json(JsonError::new(msg)))
 }
 
 impl <T, E: std::fmt::Debug> IntoJErr<T> for Result<T, E> {
