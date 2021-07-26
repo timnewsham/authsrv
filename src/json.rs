@@ -55,3 +55,12 @@ impl <T> IntoJErr<T> for Option<T> {
         }
     }
 }
+
+pub fn true_or_jerr<T>(ok: bool, okval: T, errmsg: &'static str) -> Result<T, Json<JsonError>> {
+    if ok {
+        Ok(okval)
+    } else {
+        json_err(errmsg)
+    }
+}
+

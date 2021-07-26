@@ -4,7 +4,7 @@ use rocket::serde::json::Json;
 use rocket::request::{self, FromRequest, Request};
 use rocket::outcome::IntoOutcome;
 
-use crate::json::{IntoJErr, json_err, JsonError, ERR_BADAUTH, ERR_EXPIRED};
+use crate::json::{IntoJErr, JsonError, true_or_jerr, ERR_BADAUTH, ERR_EXPIRED};
 use crate::model::token;
 use crate::redis_support;
 
@@ -35,21 +35,22 @@ impl BearerToken {
     pub async fn lookup(&self, db: &Db, cache: &Cache, serv: &Server) -> Result<token::Token, Json<JsonError>> {
         let header = self.header.clone().map_jerr(ERR_BADAUTH)?;
         let tok = token::get_token(db, cache, serv, header).await.map_jerr(ERR_BADAUTH)?;
-        if tok.is_expired() {
-            json_err(ERR_EXPIRED)
-        } else {
-            Ok(tok)
-        }
+        let valid = !tok.is_expired();
+        true_or_jerr(valid, tok, ERR_EXPIRED)
     }
 
     // Return an auth error if scope isn't associated with the bearer token
     pub async fn require_scope(&self, db: &Db, cache: &Cache, serv: &Server, scope: &str) -> Result<(), Json<JsonError>> {
         let tok = self.lookup(db, cache, serv).await?;
-        if tok.scopes.iter().any(|have| have == scope) {
-            Ok(())
-        } else {
-            json_err(ERR_BADAUTH)
-        }
+        let valid = tok.scopes.iter().any(|have| have == scope);
+        true_or_jerr(valid, (), ERR_BADAUTH)
+    }
+
+    // Return an auth error unless the bearer token is associated with the user or the scope
+    pub async fn require_user_or_scope(&self, db: &Db, cache: &Cache, serv: &Server, user: &str, scope: &str) -> Result<(), Json<JsonError>> {
+        let tok = self.lookup(db, cache, serv).await?;
+        let valid = tok.username == user || tok.scopes.iter().any(|have| have == scope);
+        true_or_jerr(valid, (), ERR_BADAUTH)
     }
 }
 
