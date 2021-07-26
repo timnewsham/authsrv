@@ -32,23 +32,23 @@ impl BearerToken {
     }
 
     // Lookup the token data associated with the bearer token and return it or an auth error
-    pub async fn lookup(&self, db: &Db, cache: &Cache, serv: &Server) -> Result<token::Token, Json<JsonError>> {
+    pub async fn lookup<'r>(&self, cdb: &CachedDb<'r>) -> Result<token::Token, Json<JsonError>> {
         let header = self.header.clone().map_jerr(ERR_BADAUTH)?;
-        let tok = token::get_token(db, cache, serv, header).await.map_jerr(ERR_BADAUTH)?;
+        let tok = token::get_token(cdb, header).await.map_jerr(ERR_BADAUTH)?;
         let valid = !tok.is_expired();
         true_or_jerr(valid, tok, ERR_EXPIRED)
     }
 
     // Return an auth error if scope isn't associated with the bearer token
-    pub async fn require_scope(&self, db: &Db, cache: &Cache, serv: &Server, scope: &str) -> Result<(), Json<JsonError>> {
-        let tok = self.lookup(db, cache, serv).await?;
+    pub async fn require_scope<'r>(&self, cdb: &CachedDb<'r>, scope: &str) -> Result<(), Json<JsonError>> {
+        let tok = self.lookup(cdb).await?;
         let valid = tok.scopes.iter().any(|have| have == scope);
         true_or_jerr(valid, (), ERR_BADAUTH)
     }
 
     // Return an auth error unless the bearer token is associated with the user or the scope
-    pub async fn require_user_or_scope(&self, db: &Db, cache: &Cache, serv: &Server, user: &str, scope: &str) -> Result<(), Json<JsonError>> {
-        let tok = self.lookup(db, cache, serv).await?;
+    pub async fn require_user_or_scope<'r>(&self, cdb: &CachedDb<'r>, user: &str, scope: &str) -> Result<(), Json<JsonError>> {
+        let tok = self.lookup(cdb).await?;
         let valid = tok.username == user || tok.scopes.iter().any(|have| have == scope);
         true_or_jerr(valid, (), ERR_BADAUTH)
     }
@@ -68,3 +68,28 @@ impl<'r> FromRequest<'r> for BearerToken {
     }
 }
 
+// Wraps up Cache and Db and Server, since they're all needed together
+pub struct CachedDb<'r> {
+    pub cache: &'r Cache,
+    pub db: &'r Db,
+    pub serv: &'r Server,
+}
+
+impl <'r> CachedDb<'r> {
+    pub fn new(cache: &'r Cache, db: &'r Db, serv: &'r Server) -> Self {
+        CachedDb{ cache: cache, db: db, serv: serv }
+    }
+}
+
+#[rocket::async_trait]
+impl <'r> FromRequest<'r> for CachedDb<'r> {
+    type Error = ();
+
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, ()> {
+        let cache = request.rocket().state::<Cache>().expect("cant get cache pool");
+        let db = request.rocket().state::<Db>().expect("cant get db pool");
+        let serv = request.rocket().state::<Server>().expect("cant get server state");
+        Ok(CachedDb::new(cache, db, serv))
+            .or_forward(())
+    }
+}

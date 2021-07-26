@@ -4,8 +4,8 @@ use rocket::serde::{Serialize, Deserialize};
 use rocket_sync_db_pools::diesel::prelude::*;
 use std::time::SystemTime;
 
-use crate::{Server, Result, errstr};
-use crate::rocktypes::{Db, Cache};
+use crate::{Result, errstr};
+use crate::rocktypes::CachedDb;
 use crate::cache;
 use crate::model::schema::tokens;
 
@@ -33,23 +33,23 @@ fn cache_key(k: &str) -> Arc<String> {
     Arc::new(format!("token_{}", k))
 }
 
-pub async fn get_token(db: &Db, cache: &Cache, serv: &Server, name: String) -> Result<Token> {
+pub async fn get_token<'r>(cdb: &CachedDb<'r>, name: String) -> Result<Token> {
     let key = cache_key(&name);
-    if let Some(x) = cache::get(&cache, serv, key.clone()).await {
+    if let Some(x) = cache::get(cdb, key.clone()).await {
         return Ok(x);
     }
 
-    let x = db.run(move |c| tokens::table.filter(tokens::token.eq(&name)).first(c)).await.map_err(errstr)?;
-    cache::put(&cache, serv, key, &x).await;
+    let x = cdb.db.run(move |c| tokens::table.filter(tokens::token.eq(&name)).first(c)).await.map_err(errstr)?;
+    cache::put(cdb, key, &x).await;
 
     Ok(x)
 }
 
-pub async fn put_token(db: &Db, cache: &Cache, serv: &Server, tok: &Token) -> Result<()> {
+pub async fn put_token<'r>(cdb: &CachedDb<'r>, tok: &Token) -> Result<()> {
     let tok2 = tok.clone();
-    db.run(|c| diesel::insert_into(tokens::table).values(tok2).execute(c)).await.map_err(errstr)?;
+    cdb.db.run(|c| diesel::insert_into(tokens::table).values(tok2).execute(c)).await.map_err(errstr)?;
     let key = cache_key(&tok.token);
-    let _ = cache::put(&cache, serv, key, tok).await; // ignore any errors
+    let _ = cache::put(cdb, key, tok).await; // ignore any errors
     Ok(())
 }
 

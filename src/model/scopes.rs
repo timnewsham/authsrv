@@ -3,8 +3,8 @@ use std::sync::Arc;
 use rocket::serde::{Serialize, Deserialize};
 use rocket_sync_db_pools::diesel::prelude::*;
 
-use crate::{Server, Result, errstr};
-use crate::rocktypes::{Db, Cache};
+use crate::{Result, errstr};
+use crate::rocktypes::CachedDb;
 use crate::cache;
 use crate::model::schema::scopes;
 
@@ -20,15 +20,15 @@ fn cache_key() -> Arc<String> {
     Arc::new("scopes".to_string())
 }
 
-pub async fn get_scopes(db: &Db, cache: &Cache, serv: &Server) -> Result<Vec<String>> {
+pub async fn get_scopes<'r>(cdb: &CachedDb<'r>) -> Result<Vec<String>> {
     let key = cache_key();
-    if let Some(u) = cache::get(&cache, serv, key.clone()).await {
+    if let Some(u) = cache::get(cdb, key.clone()).await {
         return Ok(u);
     }
 
-    let scopes: Vec<Scope> = db.run(move |c| scopes::table.load(c)).await.map_err(errstr)?;
+    let scopes: Vec<Scope> = cdb.db.run(move |c| scopes::table.load(c)).await.map_err(errstr)?;
     let names = scopes.into_iter().map(|sc| sc.name).collect();
-    cache::put(&cache, serv, key, &names).await;
+    cache::put(cdb, key, &names).await;
     Ok(names)
 }
 
