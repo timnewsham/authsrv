@@ -1,5 +1,4 @@
 
-use core::fmt::Debug;
 use rocket::serde::{Serialize, json::Json};
 
 pub const ERR_FAILED: &'static str = "failed";
@@ -7,66 +6,39 @@ pub const ERR_BADAUTH: &'static str = "auth failure";
 pub const ERR_BADSCOPES: &'static str = "bad scopes";
 pub const ERR_EXPIRED: &'static str = "expired";
 
+// A result with a status message
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub struct JsonStatus<T: Serialize> {
+pub struct WithStatus<T: Serialize> {
     status: &'static str,
     result: T,
 }
 
-pub type JsonError = JsonStatus<&'static str>;
+// Results wrapped up as JSON
+type JsonError = Json<WithStatus<&'static str>>;
+type JsonWithStatus<T> = Json<WithStatus<T>>;
 
-// A Json<T> result or a Json error
-pub type JsonRes<T> = Result<Json<JsonStatus<T>>, Json<JsonError>>;
+// A JsonRes<T> is success or error wrapped in a Json message with a status field.
+pub type JsonRes<T> = Result<JsonWithStatus<T>, JsonError>;
 
-pub trait IntoJErr<T> {
-    // map an error result into a JsonRes with the provided json error message
-    fn map_jerr(self, errmsg: &'static str) -> Result<T, Json<JsonError>>;
-}
+// A StrRes is success or an error string.
+pub type StrRes<T> = Result<T, &'static str>;
 
-pub fn json_err<T>(msg: &'static str) -> Result<T, Json<JsonError>> {
-    let err = JsonStatus{
-                status: "error",
-                result: msg,
-                };
-    Err(Json(err))
-}
-
-pub fn json_ok<T: Serialize>(result: T) -> Result<Json<JsonStatus<T>>, Json<JsonError>> {
-    let ok = JsonStatus{
-                status: "ok",
-                result: result,
-                };
-    Ok(Json(ok))
-}
-
-impl <T, E: Debug> IntoJErr<T> for Result<T, E> {
-    fn map_jerr(self, errmsg: &'static str) -> Result<T, Json<JsonError>> {
-        match self {
-            Ok(x) => Ok(x),
-            Err(e) => {
-                // log error XXX something better than println
-                println!("got error! {:?}", e);
-                json_err(errmsg)
-            },
-        }
+// Convert a StrRes<T> into a JsonRes<T>
+pub fn json_res<T: Serialize>(res: StrRes<T>) -> JsonRes<T> {
+    // XXX in the future would be nice to set HTTP response codes with these, too...
+    match res {
+        Ok(v) => Ok(Json(WithStatus{ status: "ok", result: v, })),
+        Err(msg) => Err(Json(WithStatus{ status: "error", result: msg, }))
     }
 }
 
-impl <T> IntoJErr<T> for Option<T> {
-    fn map_jerr(self, errmsg: &'static str) -> Result<T, Json<JsonError>> {
-        match self {
-            Some(x) => Ok(x),
-            None => json_err(errmsg),
-        }
-    }
-}
-
-pub fn true_or_jerr<T>(ok: bool, okval: T, errmsg: &'static str) -> Result<T, Json<JsonError>> {
+// XXX move elsewhere
+pub fn true_or_err<T>(ok: bool, okval: T, errmsg: &'static str) -> Result<T, &'static str> {
     if ok {
         Ok(okval)
     } else {
-        json_err(errmsg)
+        Err(errmsg)
     }
 }
 

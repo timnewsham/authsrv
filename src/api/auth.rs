@@ -8,9 +8,9 @@ use rocket::serde::{Serialize, Deserialize, json::Json};
 use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
-use crate::json::{JsonRes, IntoJErr, json_err, json_ok, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
-use crate::model::{user, scopes, token};
 use crate::rocktypes::{BearerToken, CachedDb};
+use crate::model::{user, scopes, token};
+use crate::json::{StrRes, JsonRes, json_res, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
 
 #[derive(Deserialize)]
 #[serde(crate = "rocket::serde")]
@@ -49,21 +49,18 @@ fn scopes_valid(req_scopes: &HashSet<&'_ str>, have_scopes: &Vec<String>, active
     return true;
 }
 
-#[post("/", format="json", data="<req>")]
-pub async fn auth(cdb: CachedDb<'_>, req: Json<AuthReq<'_>>) -> JsonRes<AuthResp> {
-    //let cdb = CachedDb::new(&cache, &db, serv);
-
+pub async fn auth_sr(cdb: CachedDb<'_>, req: Json<AuthReq<'_>>) -> StrRes<AuthResp> {
     // XXX to owned
-    let u = user::get_user(&cdb, req.name.to_owned()).await.map_jerr(ERR_FAILED)?;
-    let active_scopes: Vec<String> = scopes::get_scopes(&cdb).await.map_jerr(ERR_FAILED)?;
+    let u = user::get_user(&cdb, req.name.to_owned()).await.or(Err(ERR_FAILED))?;
+    let active_scopes: Vec<String> = scopes::get_scopes(&cdb).await.or(Err(ERR_FAILED))?;
 
     // fail if disabled, expired, or if provided credentials are bad
     if !u.is_enabled()
     || !password_valid(&u.hash, &req.secret) {
-        return json_err(ERR_BADAUTH);
+        return Err(ERR_BADAUTH);
     }
     if !scopes_valid(&req.scopes, &u.scopes, &active_scopes) {
-        return json_err(ERR_BADSCOPES);
+        return Err(ERR_BADSCOPES);
     }
 
     let tokstr = gen_token(&cdb.serv.rng);
@@ -78,7 +75,7 @@ pub async fn auth(cdb: CachedDb<'_>, req: Json<AuthReq<'_>>) -> JsonRes<AuthResp
         expiration: exp,
         scopes: granted_scopes.clone(),
     };
-    token::put_token(&cdb, &tok).await.map_jerr(ERR_FAILED)?;
+    token::put_token(&cdb, &tok).await.or(Err(ERR_FAILED))?;
 
     // and send it back to the user
     let astate = AuthResp {
@@ -86,28 +83,35 @@ pub async fn auth(cdb: CachedDb<'_>, req: Json<AuthReq<'_>>) -> JsonRes<AuthResp
         scopes: granted_scopes,
         life: tok.seconds_left(),
     };
-    json_ok(astate)
+    Ok(astate)
+}
+
+#[post("/", format="json", data="<req>")]
+pub async fn auth(cdb: CachedDb<'_>, req: Json<AuthReq<'_>>) -> JsonRes<AuthResp> {
+    json_res(auth_sr(cdb, req).await)
 }
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct TokenResp {
-    //token: String,
     username: String,
     life: u64,
     scopes: Vec<String>,
 }
 
-#[get("/", format="json")]
-pub async fn check_auth(cdb: CachedDb<'_>, bearer: BearerToken) -> JsonRes<TokenResp> {
+pub async fn check_auth_sr(cdb: CachedDb<'_>, bearer: BearerToken) -> StrRes<TokenResp> {
     let tok = bearer.lookup(&cdb).await?;
     let scopes: Vec<String> = tok.scopes.iter().map(|s| s.clone()).collect();
     let resp = TokenResp {
-        //token: tok.token.clone(),
         username: tok.username.clone(),
         life: tok.seconds_left(),
         scopes: scopes,
     };
-    json_ok(resp)
+    Ok(resp)
+}
+
+#[get("/", format="json")]
+pub async fn check_auth(cdb: CachedDb<'_>, bearer: BearerToken) -> JsonRes<TokenResp> {
+    json_res(check_auth_sr(cdb, bearer).await)
 }
 

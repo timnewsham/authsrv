@@ -1,10 +1,9 @@
 
 use rocket_sync_db_pools::database;
-use rocket::serde::json::Json;
 use rocket::request::{self, FromRequest, Request};
 use rocket::outcome::IntoOutcome;
 
-use crate::json::{IntoJErr, JsonError, true_or_jerr, ERR_BADAUTH, ERR_EXPIRED};
+use crate::json::{StrRes, true_or_err, ERR_BADAUTH, ERR_EXPIRED};
 use crate::model::token;
 use crate::redis_support;
 
@@ -32,28 +31,29 @@ impl BearerToken {
     }
 
     // Lookup the token data associated with the bearer token and return it or an auth error
-    pub async fn lookup(&self, cdb: &CachedDb<'_>) -> Result<token::Token, Json<JsonError>> {
-        let header = self.header.clone().map_jerr(ERR_BADAUTH)?;
-        let tok = token::get_token(cdb, header).await.map_jerr(ERR_BADAUTH)?;
+    pub async fn lookup(&self, cdb: &CachedDb<'_>) -> StrRes<token::Token> {
+        let header = self.header.clone().ok_or(ERR_BADAUTH)?;
+        let tok = token::get_token(cdb, header).await.or(Err(ERR_BADAUTH))?;
         let valid = !tok.is_expired();
-        true_or_jerr(valid, tok, ERR_EXPIRED)
+        true_or_err(valid, tok, ERR_EXPIRED)
     }
 
     // Return an auth error if scope isn't associated with the bearer token
-    pub async fn require_scope(&self, cdb: &CachedDb<'_>, scope: &str) -> Result<(), Json<JsonError>> {
+    pub async fn require_scope(&self, cdb: &CachedDb<'_>, scope: &str) -> StrRes<()> {
         let tok = self.lookup(cdb).await?;
         let valid = tok.scopes.iter().any(|have| have == scope);
-        true_or_jerr(valid, (), ERR_BADAUTH)
+        true_or_err(valid, (), ERR_BADAUTH)
     }
 
     // Return an auth error unless the bearer token is associated with the user or the scope
-    pub async fn require_user_or_scope(&self, cdb: &CachedDb<'_>, user: &str, scope: &str) -> Result<(), Json<JsonError>> {
+    pub async fn require_user_or_scope(&self, cdb: &CachedDb<'_>, user: &str, scope: &str) -> StrRes<()> {
         let tok = self.lookup(cdb).await?;
         let valid = tok.username == user || tok.scopes.iter().any(|have| have == scope);
-        true_or_jerr(valid, (), ERR_BADAUTH)
+        true_or_err(valid, (), ERR_BADAUTH)
     }
 }
 
+// Automatically pull BearerTokens out from requests when asked for
 #[rocket::async_trait]
 impl<'r> FromRequest<'r> for BearerToken {
     type Error = std::convert::Infallible;
@@ -75,6 +75,7 @@ pub struct CachedDb<'r> {
     pub serv: &'r Server,
 }
 
+// Automatically provide wrapped CacheDb when asked for
 #[rocket::async_trait]
 impl <'r> FromRequest<'r> for CachedDb<'r> {
     type Error = ();
