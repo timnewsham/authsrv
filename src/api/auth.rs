@@ -8,7 +8,7 @@ use rocket::serde::{Serialize, Deserialize, json::Json};
 use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
-use crate::json::{JsonRes, IntoJErr, json_err, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
+use crate::json::{JsonRes, IntoJErr, json_err, json_ok, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
 use crate::model::{user, scopes, token};
 use crate::rocktypes::{BearerToken, CachedDb};
 
@@ -23,7 +23,6 @@ pub struct AuthReq<'r> {
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct AuthResp {
-    status: &'static str,
     token: String,
     scopes: Vec<String>,
     life: u64,
@@ -83,18 +82,16 @@ pub async fn auth(cdb: CachedDb<'_>, req: Json<AuthReq<'_>>) -> JsonRes<AuthResp
 
     // and send it back to the user
     let astate = AuthResp {
-        status: "ok",
         token: tokstr,
         scopes: granted_scopes,
         life: tok.seconds_left(),
     };
-    Ok(Json(astate))
+    json_ok(astate)
 }
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
 pub struct TokenResp {
-    status: &'static str,
     //token: String,
     username: String,
     life: u64,
@@ -106,12 +103,11 @@ pub async fn check_auth(cdb: CachedDb<'_>, bearer: BearerToken) -> JsonRes<Token
     let tok = bearer.lookup(&cdb).await?;
     let scopes: Vec<String> = tok.scopes.iter().map(|s| s.clone()).collect();
     let resp = TokenResp {
-        status: "ok",
         //token: tok.token.clone(),
         username: tok.username.clone(),
         life: tok.seconds_left(),
         scopes: scopes,
     };
-    Ok(Json(resp))
+    json_ok(resp)
 }
 

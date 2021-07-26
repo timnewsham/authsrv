@@ -1,4 +1,5 @@
 
+use core::fmt::Debug;
 use rocket::serde::{Serialize, json::Json};
 
 pub const ERR_FAILED: &'static str = "failed";
@@ -6,24 +7,17 @@ pub const ERR_BADAUTH: &'static str = "auth failure";
 pub const ERR_BADSCOPES: &'static str = "bad scopes";
 pub const ERR_EXPIRED: &'static str = "expired";
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub struct JsonError {
+pub struct JsonStatus<T: Serialize> {
     status: &'static str,
-    result: &'static str,
+    result: T,
 }
 
-impl JsonError {
-    pub fn new(msg: &'static str) -> Self {
-        JsonError{
-            status: "error",
-            result: msg,
-        }
-    }
-}
+pub type JsonError = JsonStatus<&'static str>;
 
 // A Json<T> result or a Json error
-pub type JsonRes<T> = Result<Json<T>, Json<JsonError>>;
+pub type JsonRes<T> = Result<Json<JsonStatus<T>>, Json<JsonError>>;
 
 pub trait IntoJErr<T> {
     // map an error result into a JsonRes with the provided json error message
@@ -31,10 +25,22 @@ pub trait IntoJErr<T> {
 }
 
 pub fn json_err<T>(msg: &'static str) -> Result<T, Json<JsonError>> {
-    Err(Json(JsonError::new(msg)))
+    let err = JsonStatus{
+                status: "error",
+                result: msg,
+                };
+    Err(Json(err))
 }
 
-impl <T, E: std::fmt::Debug> IntoJErr<T> for Result<T, E> {
+pub fn json_ok<T: Serialize>(result: T) -> Result<Json<JsonStatus<T>>, Json<JsonError>> {
+    let ok = JsonStatus{
+                status: "ok",
+                result: result,
+                };
+    Ok(Json(ok))
+}
+
+impl <T, E: Debug> IntoJErr<T> for Result<T, E> {
     fn map_jerr(self, errmsg: &'static str) -> Result<T, Json<JsonError>> {
         match self {
             Ok(x) => Ok(x),
