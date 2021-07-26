@@ -4,6 +4,7 @@ use rocket::serde::{Serialize, json::Json};
 pub const ERR_FAILED: &'static str = "failed";
 pub const ERR_BADAUTH: &'static str = "auth failure";
 pub const ERR_BADSCOPES: &'static str = "bad scopes";
+pub const ERR_EXPIRED: &'static str = "expired";
 
 #[derive(Serialize, Debug)]
 #[serde(crate = "rocket::serde")]

@@ -20,8 +20,11 @@ pub struct Token {
 
 impl Token {
     pub fn is_expired(&self) -> bool {
-        // errors if expiration is before now
-        self.expiration.duration_since(SystemTime::now()).is_err()
+        self.seconds_left() == 0
+    }
+
+    pub fn seconds_left(&self) -> u64 {
+        self.expiration.duration_since(SystemTime::now()).map(|d| d.as_secs()).unwrap_or(0)
     }
 }
 

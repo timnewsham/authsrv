@@ -9,7 +9,7 @@ use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
 use crate::{Db, Cache, Server};
-use crate::json::{JsonRes, IntoJErr, json_err, JsonError, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
+use crate::json::{JsonRes, IntoJErr, json_err, JsonError, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES, ERR_EXPIRED};
 use crate::model::{user, scopes, token};
 
 #[derive(Deserialize)]
@@ -22,17 +22,11 @@ pub struct AuthReq<'r> {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub struct AuthState {
+pub struct AuthResp {
+    status: &'static str,
     token: String,
     scopes: Vec<String>,
     life: u64,
-}
-
-#[derive(Serialize)]
-#[serde(crate = "rocket::serde")]
-pub struct AuthResp {
-    status: &'static str,
-    result: Option<AuthState>,
 }
 
 fn gen_token(rng: &Mutex<StdRng>) -> String {
@@ -77,58 +71,70 @@ pub async fn auth(db: Db, cache: Cache, serv: &Server, req: Json<AuthReq<'_>>) -
     let granted_scopes: Vec<String> = req.scopes.iter().copied().map(|s| s.to_owned()).collect();
 
     // add session to our store
-    let sess = token::Token {
+    let tok = token::Token {
         token: tokstr.clone(),
         username: u.name.clone(),
         expiration: exp,
         scopes: granted_scopes.clone(),
     };
-    token::put_token(&db, &cache, serv, &sess).await.map_jerr(ERR_FAILED)?;
+    token::put_token(&db, &cache, serv, &tok).await.map_jerr(ERR_FAILED)?;
 
     // and send it back to the user
-    let astate = AuthState {
+    let astate = AuthResp {
+        status: "ok",
         token: tokstr,
         scopes: granted_scopes,
-        life: life.as_secs(),
+        life: tok.seconds_left(),
     };
-    Ok(Json(AuthResp{
-        status: "ok",
-        result: Some(astate)
-    }))
+    Ok(Json(astate))
 }
 
 
 ///-------------------
-use std::array::IntoIter;
-use std::iter::FromIterator;
 use rocket::request::{self, FromRequest, Request};  
 use rocket::outcome::IntoOutcome;
 use rocket::http::Status;
 
 // Authorization information from bearer token
-pub struct Authed {
-    pub scopes: HashSet<String>,
+pub struct BearerToken {
+    pub header: String,
 }
 
-fn validate_auth_header<'a>(hdr: &'a str) -> Option<Authed> {
-    let tok = hdr.strip_prefix("bearer ")?;
-    if tok != "XXX" {
-        return None;
+impl BearerToken {
+    pub fn new(hdr: &str) -> Self {
+        BearerToken{ header: hdr.to_owned() }
     }
 
-    Some(Authed {
-        scopes: HashSet::<_>::from_iter(IntoIter::new(["test".to_owned(), "authadmin".to_owned()])),
-    })
+    // Lookup the token data associated with the bearer token and return it or an auth error
+    pub async fn lookup(&self, db: &Db, cache: &Cache, serv: &Server) -> Result<token::Token, Json<JsonError>> {
+        let tok = token::get_token(db, cache, serv, self.header.clone()).await.map_jerr(ERR_BADAUTH)?;
+        if tok.is_expired() {
+            json_err(ERR_EXPIRED)
+        } else {
+            Ok(tok)
+        }
+    }
+
+    // Return an auth error if scope isn't associated with the bearer token
+    pub async fn require_scope(&self, db: &Db, cache: &Cache, serv: &Server, scope: &str) -> Result<(), Json<JsonError>> {
+        let tok = self.lookup(db, cache, serv).await?;
+        if tok.scopes.iter().any(|have| have == scope) {
+            Ok(())
+        } else {
+            json_err(ERR_BADAUTH)
+        }
+    }
 }
 
 #[rocket::async_trait]
-impl<'r> FromRequest<'r> for Authed {
+impl<'r> FromRequest<'r> for BearerToken {
     type Error = Json<JsonError>;
 
-    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Authed, Self::Error> {
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<BearerToken, Self::Error> {
         request.headers()
             .get_one("Authorization")
-            .and_then(validate_auth_header)
+            .and_then(|h| h.strip_prefix("bearer "))
+            .map(BearerToken::new)
             // XXX how can we return 401 and have it be json?
             //.into_outcome((Status::Unauthorized, Json(JsonError::new(ERR_BADAUTH))))
             .into_outcome((Status::Ok, Json(JsonError::new(ERR_BADAUTH))))
@@ -137,16 +143,25 @@ impl<'r> FromRequest<'r> for Authed {
 
 #[derive(Serialize)]
 #[serde(crate = "rocket::serde")]
-pub struct ScopesResp {
+pub struct TokenResp {
     status: &'static str,
-    result: HashSet<String>,
+    //token: String,
+    username: String,
+    life: u64,
+    scopes: Vec<String>,
 }
 
 #[get("/", format="json")]
-pub async fn check_auth(db: Db, cache: Cache, authed: Authed) -> Json<ScopesResp> {
-    Json(ScopesResp {
-        status: "succes",
-        result: authed.scopes.clone(),
-    })
+pub async fn check_auth(db: Db, cache: Cache, serv: &Server, bearer: BearerToken) -> JsonRes<TokenResp> {
+    let tok = bearer.lookup(&db, &cache, serv).await?;
+    let scopes: Vec<String> = tok.scopes.iter().map(|s| s.clone()).collect();
+    let resp = TokenResp {
+        status: "ok",
+        //token: tok.token.clone(),
+        username: tok.username.clone(),
+        life: tok.seconds_left(),
+        scopes: scopes,
+    };
+    Ok(Json(resp))
 }
 
