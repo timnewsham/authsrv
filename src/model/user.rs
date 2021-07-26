@@ -4,7 +4,8 @@ use rocket::serde::{Serialize, Deserialize};
 use rocket_sync_db_pools::diesel::prelude::*;
 use std::time::SystemTime;
 
-use crate::{Db, Cache, Server, Result, errstr};
+use crate::{Server, Result, errstr};
+use crate::rocktypes::{Db, Cache};
 use crate::cache;
 use crate::model::schema::users;
 

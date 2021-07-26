@@ -1,11 +1,21 @@
 
+use rocket_sync_db_pools::database;
 use rocket::serde::json::Json;
-use rocket::request::{self, FromRequest, Request};  
+use rocket::request::{self, FromRequest, Request};
 use rocket::outcome::IntoOutcome;
 use rocket::http::Status;
-use crate::{Db, Cache, Server};
+
 use crate::json::{IntoJErr, json_err, JsonError, ERR_BADAUTH, ERR_EXPIRED};
 use crate::model::token;
+use crate::redis_support;
+
+pub use crate::Server;
+
+#[database("diesel")]
+pub struct Db(diesel::PgConnection);
+
+#[database("redis")]
+pub struct Cache(redis_support::Connection);
 
 /*
  * Authorization information from bearer token.

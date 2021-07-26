@@ -12,24 +12,19 @@ mod rocktypes;
 use std::sync::Mutex;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use rocket::State;                                                              
-use rocket::serde::Deserialize; 
-use rocket_sync_db_pools::{database};                                   
+use rocket::State;
+use rocket::serde::Deserialize;
 
-pub type Result<T> = std::result::Result<T, String>;                                
-                                                                                
-pub fn errstr(x: impl ToString) -> String {                                         
-    x.to_string()                                                               
-} 
+use crate::rocktypes::{Db, Cache};
 
-#[database("diesel")]                                                           
-pub struct Db(diesel::PgConnection);  
+pub type Result<T> = std::result::Result<T, String>;
 
-#[database("redis")]                                                           
-pub struct Cache(redis_support::Connection);
+pub fn errstr(x: impl ToString) -> String {
+    x.to_string()
+}
 
 #[derive(Debug, Deserialize)]
-#[serde(crate = "rocket::serde")] 
+#[serde(crate = "rocket::serde")]
 struct AppConfig {
     use_tests: bool,
     use_cache: bool,

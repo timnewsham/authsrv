@@ -8,7 +8,8 @@ use rocket::serde::{Serialize, Deserialize, json::Json};
 use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
 
-use crate::{Db, Cache, Server};
+use crate::Server;
+use crate::rocktypes::{Db, Cache};
 use crate::json::{JsonRes, IntoJErr, json_err, ERR_FAILED, ERR_BADAUTH, ERR_BADSCOPES};
 use crate::model::{user, scopes, token};
 use crate::rocktypes::{BearerToken};

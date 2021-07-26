@@ -26,11 +26,11 @@ impl ConnectionManager {
         })
     }
 }
-    
+
 impl r2d2::ManageConnection for ConnectionManager {
     type Connection = Connection;
     type Error = redis::RedisError;
-    fn connect(&self) -> Result<Self::Connection, Self::Error> { 
+    fn connect(&self) -> Result<Self::Connection, Self::Error> {
         match redis::Client::open(self.connection_info.clone()) {
             Ok(client) => client.get_connection().map(|c| Connection(c)),
             Err(err) => Err(err)
@@ -39,7 +39,7 @@ impl r2d2::ManageConnection for ConnectionManager {
     fn is_valid(&self, conn: &mut Self::Connection) -> Result<(), Self::Error> {
         redis::cmd("PING").query(&mut conn.0)
     }
-    fn has_broken(&self, conn: &mut Self::Connection) -> bool { 
+    fn has_broken(&self, conn: &mut Self::Connection) -> bool {
         !conn.0.is_open()
     }
 }

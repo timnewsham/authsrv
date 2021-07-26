@@ -4,7 +4,9 @@ use rocket::serde::{Serialize, DeserializeOwned};
 use redis;
 use redis::Commands;
 use rmp_serde;
-use crate::{Cache, Server};
+
+use crate::Server;
+use crate::rocktypes::Cache;
 
 
 /*
@@ -14,7 +16,7 @@ use crate::{Cache, Server};
 pub async fn get<T: DeserializeOwned + Send>(cache: &Cache, serv: &Server, key: Arc<String>) -> Option<T> {
     if !serv.use_cache { return None; }
     let v: Vec<u8> = cache.run(move |c| c.0.get(&*key)).await.ok()?;
-    rmp_serde::from_read_ref(&v).ok()                                           
+    rmp_serde::from_read_ref(&v).ok()
 }
 
 pub async fn put(cache: &Cache, serv: &Server, key: Arc<String>, x: &impl Serialize) -> Option<()>{
