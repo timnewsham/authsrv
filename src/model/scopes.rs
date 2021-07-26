@@ -20,7 +20,7 @@ fn cache_key() -> Arc<String> {
     Arc::new("scopes".to_string())
 }
 
-pub async fn get_scopes<'r>(cdb: &CachedDb<'r>) -> Result<Vec<String>> {
+pub async fn get_scopes(cdb: &CachedDb<'_>) -> Result<Vec<String>> {
     let key = cache_key();
     if let Some(u) = cache::get(cdb, key.clone()).await {
         return Ok(u);

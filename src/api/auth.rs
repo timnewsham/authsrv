@@ -39,7 +39,7 @@ fn password_valid(hash: &str, pw: &str) -> bool {
     argon2::verify_encoded(hash, pw.as_bytes()).unwrap_or(false)
 }
 
-fn scopes_valid<'r>(req_scopes: &HashSet<&'r str>, have_scopes: &Vec<String>, active_scopes: &Vec<String>) -> bool {
+fn scopes_valid(req_scopes: &HashSet<&'_ str>, have_scopes: &Vec<String>, active_scopes: &Vec<String>) -> bool {
     // fail if any requested scope is no longer active or doesnt belong to the user
     for want in req_scopes.iter() {
         if !active_scopes.iter().any(|active| want == active)
@@ -51,7 +51,7 @@ fn scopes_valid<'r>(req_scopes: &HashSet<&'r str>, have_scopes: &Vec<String>, ac
 }
 
 #[post("/", format="json", data="<req>")]
-pub async fn auth<'r>(cdb: CachedDb<'r>, req: Json<AuthReq<'_>>) -> JsonRes<AuthResp> {
+pub async fn auth(cdb: CachedDb<'_>, req: Json<AuthReq<'_>>) -> JsonRes<AuthResp> {
     //let cdb = CachedDb::new(&cache, &db, serv);
 
     // XXX to owned
@@ -102,7 +102,7 @@ pub struct TokenResp {
 }
 
 #[get("/", format="json")]
-pub async fn check_auth<'r>(cdb: CachedDb<'r>, bearer: BearerToken) -> JsonRes<TokenResp> {
+pub async fn check_auth(cdb: CachedDb<'_>, bearer: BearerToken) -> JsonRes<TokenResp> {
     let tok = bearer.lookup(&cdb).await?;
     let scopes: Vec<String> = tok.scopes.iter().map(|s| s.clone()).collect();
     let resp = TokenResp {

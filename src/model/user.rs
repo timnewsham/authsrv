@@ -36,7 +36,7 @@ fn cache_key(k: &str) -> Arc<String> {
     Arc::new(format!("user_{}", k))
 }
 
-pub async fn get_user<'r>(cdb: &CachedDb<'r>, name: String) -> Result<User> {
+pub async fn get_user(cdb: &CachedDb<'_>, name: String) -> Result<User> {
     let key = cache_key(&name);
     if let Some(u) = cache::get(cdb, key.clone()).await {
         return Ok(u);

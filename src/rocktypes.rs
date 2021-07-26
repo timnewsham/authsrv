@@ -32,7 +32,7 @@ impl BearerToken {
     }
 
     // Lookup the token data associated with the bearer token and return it or an auth error
-    pub async fn lookup<'r>(&self, cdb: &CachedDb<'r>) -> Result<token::Token, Json<JsonError>> {
+    pub async fn lookup(&self, cdb: &CachedDb<'_>) -> Result<token::Token, Json<JsonError>> {
         let header = self.header.clone().map_jerr(ERR_BADAUTH)?;
         let tok = token::get_token(cdb, header).await.map_jerr(ERR_BADAUTH)?;
         let valid = !tok.is_expired();
@@ -40,14 +40,14 @@ impl BearerToken {
     }
 
     // Return an auth error if scope isn't associated with the bearer token
-    pub async fn require_scope<'r>(&self, cdb: &CachedDb<'r>, scope: &str) -> Result<(), Json<JsonError>> {
+    pub async fn require_scope(&self, cdb: &CachedDb<'_>, scope: &str) -> Result<(), Json<JsonError>> {
         let tok = self.lookup(cdb).await?;
         let valid = tok.scopes.iter().any(|have| have == scope);
         true_or_jerr(valid, (), ERR_BADAUTH)
     }
 
     // Return an auth error unless the bearer token is associated with the user or the scope
-    pub async fn require_user_or_scope<'r>(&self, cdb: &CachedDb<'r>, user: &str, scope: &str) -> Result<(), Json<JsonError>> {
+    pub async fn require_user_or_scope(&self, cdb: &CachedDb<'_>, user: &str, scope: &str) -> Result<(), Json<JsonError>> {
         let tok = self.lookup(cdb).await?;
         let valid = tok.username == user || tok.scopes.iter().any(|have| have == scope);
         true_or_jerr(valid, (), ERR_BADAUTH)
@@ -75,12 +75,6 @@ pub struct CachedDb<'r> {
     pub serv: &'r Server,
 }
 
-impl <'r> CachedDb<'r> {
-    pub fn new(cache: &'r Cache, db: &'r Db, serv: &'r Server) -> Self {
-        CachedDb{ cache: cache, db: db, serv: serv }
-    }
-}
-
 #[rocket::async_trait]
 impl <'r> FromRequest<'r> for CachedDb<'r> {
     type Error = ();
@@ -89,7 +83,7 @@ impl <'r> FromRequest<'r> for CachedDb<'r> {
         let cache = request.rocket().state::<Cache>().expect("cant get cache pool");
         let db = request.rocket().state::<Db>().expect("cant get db pool");
         let serv = request.rocket().state::<Server>().expect("cant get server state");
-        Ok(CachedDb::new(cache, db, serv))
+        Ok(CachedDb{ cache: cache, db: db, serv: serv })
             .or_forward(())
     }
 }

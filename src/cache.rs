@@ -12,13 +12,13 @@ use crate::rocktypes::CachedDb;
  * Fetch key from cache and return it if there were no cache errors
  * or parse errors.
  */
-pub async fn get<'r, T: DeserializeOwned + Send>(cdb: &CachedDb<'r>, key: Arc<String>) -> Option<T> {
+pub async fn get<T: DeserializeOwned + Send>(cdb: &CachedDb<'_>, key: Arc<String>) -> Option<T> {
     if !cdb.serv.use_cache { return None; }
     let v: Vec<u8> = cdb.cache.run(move |c| c.0.get(&*key)).await.ok()?;
     rmp_serde::from_read_ref(&v).ok()
 }
 
-pub async fn put<'r>(cdb: &'r CachedDb<'r>, key: Arc<String>, x: &impl Serialize) -> Option<()>{
+pub async fn put(cdb: &CachedDb<'_>, key: Arc<String>, x: &impl Serialize) -> Option<()>{
     if !cdb.serv.use_cache { return None; }
     let v: Vec<u8> = rmp_serde::to_vec(x).ok()?;
     let lifetime = cdb.serv.cache_lifetime as usize;

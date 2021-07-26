@@ -33,7 +33,7 @@ fn cache_key(k: &str) -> Arc<String> {
     Arc::new(format!("token_{}", k))
 }
 
-pub async fn get_token<'r>(cdb: &CachedDb<'r>, name: String) -> Result<Token> {
+pub async fn get_token(cdb: &CachedDb<'_>, name: String) -> Result<Token> {
     let key = cache_key(&name);
     if let Some(x) = cache::get(cdb, key.clone()).await {
         return Ok(x);
@@ -45,7 +45,7 @@ pub async fn get_token<'r>(cdb: &CachedDb<'r>, name: String) -> Result<Token> {
     Ok(x)
 }
 
-pub async fn put_token<'r>(cdb: &CachedDb<'r>, tok: &Token) -> Result<()> {
+pub async fn put_token(cdb: &CachedDb<'_>, tok: &Token) -> Result<()> {
     let tok2 = tok.clone();
     cdb.db.run(|c| diesel::insert_into(tokens::table).values(tok2).execute(c)).await.map_err(errstr)?;
     let key = cache_key(&tok.token);
