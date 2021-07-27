@@ -30,3 +30,8 @@ pub async fn del(cdb: &CachedDb<'_>, key: Arc<String>) -> Option<()> {
     cdb.cache.run(move |c| c.0.del(&*key)).await.ok()
 }
 
+pub async fn clean(_cdb: &CachedDb<'_>) -> Option<usize> {                       
+    // XXX impl
+    Some(0) // XXX
+}
+

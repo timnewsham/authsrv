@@ -53,3 +53,14 @@ pub async fn put_token(cdb: &CachedDb<'_>, tok: &Token) -> Result<()> {
     Ok(())
 }
 
+pub async fn clean(cdb: &CachedDb<'_>) -> Result<usize> {
+    use diesel::dsl::now;
+    use self::tokens::dsl::*; // XXX figure out exactly what we need
+    let cnt = cdb.db.run(|c| 
+        diesel::delete(self::tokens::table)
+                .filter(expiration.lt(now))
+                .execute(c)
+            ).await.map_err(errstr)?;
+    Ok(cnt)
+}
+

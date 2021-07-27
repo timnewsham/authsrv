@@ -36,9 +36,12 @@ def create_user(s, user, pw, life, scopes) :
 def create_scope(s, scope) :
     return s.post(serv + '/admin/scope', json=scope).json()
 
+def clean(s) :
+    return s.post(serv + "/admin/clean").json()
+
 s = new_session()
 
-if 0 :
+if 1 :
     print login(s, 'admin', 'adminadmin', ['authadmin'])
     if 1 :
         print check(s)
@@ -49,7 +52,10 @@ if 0 :
     if 0 :
         print create_user(s, "test", "testpw", 60*60*365*5, ["user"])
 
-if 1 :
+    if 1 :
+        print clean(s)
+
+if 0 :
     s = new_session()
     print login(s, "test", "testpw", ["user"])
 

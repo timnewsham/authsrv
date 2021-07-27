@@ -70,5 +70,6 @@ fn rocket() -> _ {
         .mount("/auth", routes![api::auth::auth,
                                 api::auth::check_auth])
         .mount("/admin", routes![api::admin::create_user,
-                                 api::admin::create_scope])
+                                 api::admin::create_scope,
+                                 api::admin::clean])
 }

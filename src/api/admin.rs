@@ -6,8 +6,9 @@ use std::sync::Mutex;
 use std::time::{SystemTime, Duration};
 use rocket::serde::{Deserialize, json::Json};
 
+use crate::cache;
 use crate::rocktypes::{BearerToken, CachedDb};
-use crate::model::{user, scopes};
+use crate::model::{user, scopes, token};
 use crate::json::{StrRes, JsonRes, json_res, ERR_FAILED, ERR_BADSCOPES};
 
 #[derive(Deserialize)]
@@ -78,5 +79,17 @@ async fn create_scope_sr(cdb: CachedDb<'_>, bearer: BearerToken, req: Json<Strin
 #[post("/scope", format="json", data="<req>")]
 pub async fn create_scope(cdb: CachedDb<'_>, bearer: BearerToken, req: Json<String>) -> JsonRes<&'static str> {
     json_res(create_scope_sr(cdb, bearer, req).await)
+}
+
+async fn clean_sr(cdb: CachedDb<'_>, bearer: BearerToken) -> StrRes<&'static str> {
+    bearer.require_scope(&cdb, "authadmin").await?;
+    let _ = cache::clean(&cdb).await;
+    let _ = token::clean(&cdb).await;
+    Ok("cleaned")
+}
+
+#[post("/clean", format="json")]
+pub async fn clean(cdb: CachedDb<'_>, bearer: BearerToken) -> JsonRes<&'static str> {
+    json_res(clean_sr(cdb, bearer).await)
 }
 
