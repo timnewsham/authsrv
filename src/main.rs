@@ -69,4 +69,6 @@ fn rocket() -> _ {
         .attach(Cache::fairing())
         .mount("/auth", routes![api::auth::auth,
                                 api::auth::check_auth])
+        .mount("/admin", routes![api::admin::create_user,
+                                 api::admin::create_scope])
 }

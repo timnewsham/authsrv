@@ -32,3 +32,10 @@ pub async fn get_scopes(cdb: &CachedDb<'_>) -> Result<Vec<String>> {
     Ok(names)
 }
 
+pub async fn put_scope(cdb: &CachedDb<'_>, newscope: &String) -> Result<()> {
+    let key = cache_key();
+    cache::del(cdb, key).await;
+    let scope = Scope{ name: newscope.clone() };
+    cdb.db.run(move |c| diesel::insert_into(scopes::table).values(scope).execute(c)).await.map_err(errstr)?;
+    Ok(())
+}

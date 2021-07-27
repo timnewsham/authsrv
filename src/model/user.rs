@@ -1,5 +1,6 @@
 
 use std::sync::Arc;
+use diesel;
 use rocket::serde::{Serialize, Deserialize};
 use rocket_sync_db_pools::diesel::prelude::*;
 use std::time::SystemTime;
@@ -46,5 +47,12 @@ pub async fn get_user(cdb: &CachedDb<'_>, name: String) -> Result<User> {
     cache::put(cdb, key, &u).await;
 
     Ok(u)
+}
+
+pub async fn put_user(cdb: &CachedDb<'_>, u: User) -> Result<()> {
+    let key = cache_key(&u.name);
+    cache::del(cdb, key).await;
+    cdb.db.run(move |c| diesel::insert_into(users::table).values(u).execute(c)).await.map_err(errstr)?;
+    Ok(())
 }
 

@@ -42,6 +42,7 @@ impl BearerToken {
     pub async fn require_scope(&self, cdb: &CachedDb<'_>, scope: &str) -> StrRes<()> {
         let tok = self.lookup(cdb).await?;
         let valid = tok.scopes.iter().any(|have| have == scope);
+        println!("require {:?}, have {:?} status {:?}", scope, tok.scopes, valid);
         true_or_err(valid, (), ERR_BADAUTH)
     }
 
