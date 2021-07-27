@@ -1,6 +1,5 @@
 
 use std::collections::HashSet;
-use std::ops::Add;
 use std::time::{Duration, SystemTime};
 use std::sync::Mutex;
 use argon2;
@@ -74,7 +73,7 @@ pub async fn auth_sr(cdb: CachedDb<'_>, req: Json<AuthReq<'_>>) -> StrRes<AuthRe
 
     let tokstr = gen_token(&cdb.serv.rng);
     let life = Duration::new(cdb.serv.token_lifetime, 0);
-    let exp = SystemTime::now().add(life);
+    let exp = SystemTime::now() + life;
     let granted_scopes: Vec<String> = req.scopes.iter().copied().map(|s| s.to_owned()).collect();
 
     // add session to our store

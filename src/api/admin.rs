@@ -1,7 +1,6 @@
 
 use rand::{Rng, rngs::StdRng};
 use std::collections::HashSet;
-use std::ops::Add;
 use std::sync::Mutex;
 use std::time::{SystemTime, Duration};
 use rocket::serde::{Deserialize, json::Json};
@@ -47,7 +46,7 @@ async fn create_user_sr(cdb: CachedDb<'_>, bearer: BearerToken, req: Json<Create
         return Err(ERR_BADSCOPES);
     }
 
-    let expire = SystemTime::now().add(Duration::from_secs(req.life)); // XXX cant this fail?
+    let expire = SystemTime::now() + Duration::from_secs(req.life); // XXX cant this fail?
     let hash = hash_password(&cdb.serv.rng, req.secret);
     let granted_scopes = req.scopes.iter().copied().map(|s| s.to_owned()).collect();
     let u = user::User {
