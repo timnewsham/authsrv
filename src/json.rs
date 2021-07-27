@@ -40,8 +40,3 @@ pub fn json_res<T: Serialize>(res: StrRes<T>) -> JsonRes<T> {
     }
 }
 
-// XXX move elsewhere
-pub fn true_or_err<T, E>(ok: bool, okval: T, errval: E) -> Result<T, E> {
-    if ok { Ok(okval) } else { Err(errval) }
-}
-
