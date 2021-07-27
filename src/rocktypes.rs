@@ -1,7 +1,7 @@
 
 use rocket_sync_db_pools::database;
 use rocket::request::{self, FromRequest, Request};
-use rocket::outcome::IntoOutcome;
+use rocket::outcome::{Outcome, IntoOutcome};
 
 use crate::json::{StrRes, ERR_BADAUTH, ERR_EXPIRED};
 use crate::model::token;
@@ -63,8 +63,7 @@ impl<'r> FromRequest<'r> for BearerToken {
                         .get_one("Authorization")
                         .and_then(|s| s.strip_prefix("bearer "));
         let bt = BearerToken::new(opthdr);
-        // XXX never forwards.. is there a better way to do this?
-        Some(bt).or_forward(())
+        Outcome::Success(bt)
     }
 }
 
@@ -78,9 +77,9 @@ pub struct CachedDb<'r> {
 // Automatically provide wrapped CacheDb when asked for
 #[rocket::async_trait]
 impl <'r> FromRequest<'r> for CachedDb<'r> {
-    type Error = ();
+    type Error = std::convert::Infallible;
 
-    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, ()> {
+    async fn from_request(request: &'r Request<'_>) -> request::Outcome<Self, Self::Error> {
         let cache = request.guard::<Cache>().await.expect("cant get cache pool");
         let db = request.guard::<Db>().await.expect("cant get db pool");
         let serv = request.guard::<&Server>().await.expect("cant get server state");
