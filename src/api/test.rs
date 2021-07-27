@@ -1,5 +1,4 @@
 
-use argon2;
 use crate::Server;
 
 #[get("/")]

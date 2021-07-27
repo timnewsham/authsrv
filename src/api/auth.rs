@@ -2,7 +2,6 @@
 use std::collections::HashSet;
 use std::time::{Duration, SystemTime};
 use std::sync::Mutex;
-use argon2;
 use rocket::serde::{Serialize, Deserialize, json::Json};
 use rand::{Rng, rngs::StdRng};
 use hex::ToHex;
