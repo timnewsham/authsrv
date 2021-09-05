@@ -1,5 +1,6 @@
 
 #[macro_use] extern crate diesel;
+#[macro_use] extern crate diesel_migrations;
 #[macro_use] extern crate rocket;
 
 mod api;
@@ -12,8 +13,9 @@ mod rocktypes;
 use std::sync::Mutex;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
-use rocket::State;
+use rocket::{Rocket, State, Build};
 use rocket::serde::Deserialize;
+use rocket::fairing::AdHoc;
 
 use crate::rocktypes::{Db, Cache};
 
@@ -51,6 +53,13 @@ impl ServerState {
     }
 }
 
+async fn run_migrations(rocket: Rocket<Build>) -> Rocket<Build> {
+    embed_migrations!("migrations");
+    let conn = Db::get_one(&rocket).await.expect("database connection");
+    conn.run(|c| embedded_migrations::run(c)).await.expect("diesel migrations");
+    rocket
+}
+
 #[launch]
 fn rocket() -> _ {
     let mut b = rocket::build();
@@ -66,6 +75,7 @@ fn rocket() -> _ {
 
     b.manage(ServerState::new(&conf))
         .attach(Db::fairing())
+        .attach(AdHoc::on_ignite("Diesel Migrations", run_migrations))
         .attach(Cache::fairing())
         .mount("/auth", routes![api::auth::auth,
                                 api::auth::check_auth])
